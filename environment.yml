@@ -1,0 +1,23 @@
+name: c_mbrl
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pip
+  - pip:
+    - setuptools==65.5.0 
+    - pip==21
+    - jax[cuda11_pip] -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+    - carl-bench[brax,dm_control] @ git+https://github.com/automl/CARL.git@v1.0.0
+    - ipykernel
+    - dreamerv3
+    - --editable . # Install contextual_mbrl
+    # When we start using tdmpc, we need to install the following packages
+    # - torch==2.1.1 --index-url https://download.pytorch.org/whl/cu118
+    # - torchvision --index-url https://download.pytorch.org/whl/cu118
+    # - moviepy
+    # - hydra-core
+    # - hydra-submitit-launcher
+    # - tensordict
+    # - torchrl
