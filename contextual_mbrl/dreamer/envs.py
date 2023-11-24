@@ -13,6 +13,19 @@ from carl.context.context_space import (
     UniformIntegerContextFeature,
 )
 from carl.context.sampler import ContextSampler
+from carl.envs.brax import (
+    CARLBraxAnt,
+    CARLBraxHalfcheetah,
+    CARLBraxHopper,
+    CARLBraxHumanoid,
+)
+from carl.envs.carl_env import CARLEnv
+from carl.envs.dmc import (
+    CARLDmcFingerEnv,
+    CARLDmcFishEnv,
+    CARLDmcQuadrupedEnv,
+    CARLDmcWalkerEnv,
+)
 from dreamerv3 import embodied
 
 U = TypeVar("U")
@@ -44,80 +57,42 @@ def make_env(config, **overrides):
 def make_carl_env(config, **overrides):
     _, task = config.task.split("_", 1)
     obs_key = "obs"
-    from carl.envs.dmc import (
-        CARLDmcFingerEnv,
-        CARLDmcFishEnv,
-        CARLDmcQuadrupedEnv,
-        CARLDmcWalkerEnv,
-    )
 
     task2env = {
         "dmc_walker": CARLDmcWalkerEnv,
-        "dmc_finger": CARLDmcFingerEnv,
-        "dmc_fish": CARLDmcFishEnv,
         "dmc_quadruped": CARLDmcQuadrupedEnv,
+        "brax_ant": CARLBraxAnt,
+        "brax_halfcheetah": CARLBraxHalfcheetah,
     }
-    env_ctor = task2env[task]
+
+    env_cls: CARLEnv = task2env[task]
     contexts = {}
     if config.env.carl.context == "default":
         contexts = None
-
-    env = env_ctor(
+    elif config.env.carl.context == "vary_single":
+        task2single_context = {
+            "dmc_walker": "gravity",
+            "dmc_quadruped": "gravity",
+            "brax_ant": "gravity",
+            "brax_halfcheetah": "gravity",
+        }
+        context_name = task2single_context[task]
+        context_default = env_cls.get_default_context()[config.env.carl.context]
+        l, u = context_default / 2, context_default * 2
+        sampler = ContextSampler(
+            context_distributions=[
+                UniformFloatContextFeature(config.env.carl.context, l, u)
+            ],
+            context_space=env_cls.get_context_space(),
+            seed=config.seed,
+        )
+        contexts = sampler.sample_contexts(n_contexts=100)
+    env = env_cls(
         contexts=contexts, obs_context_as_dict=False
     )  # Replace this with your Gym env.
     env.env.render_mode = "rgb_array"
     env = FromGymnasium(env, obs_key=obs_key)
     return dreamerv3.wrap_env(env, config)
-
-
-# def make_carl_env(config, **overrides):
-#     _, task = config.task.split("_", 1)
-#     obs_key = "obs"
-#     from carl.envs.dmc import (
-#         CARLDmcFingerEnv,
-#         CARLDmcFishEnv,
-#         CARLDmcQuadrupedEnv,
-#         CARLDmcWalkerEnv,
-#     )
-
-#     task2env = {
-#         "dmc_walker": CARLDmcWalkerEnv,
-#         "dmc_finger": CARLDmcFingerEnv,
-#         "dmc_fish": CARLDmcFishEnv,
-#         "dmc_quadruped": CARLDmcQuadrupedEnv,
-#     }
-#     env_ctor = task2env[task]
-#     contexts = config.env.context.fixed.flat()
-
-#     context_feat2ctor = {
-#         "normal": NormalFloatContextFeature,
-#         "uniform": UniformFloatContextFeature,
-#         "uniform_int": UniformIntegerContextFeature,
-#         "categorical": CategoricalContextFeature,
-#     }
-
-#     if config.env.context.sample:
-#         # assuming all contexts can be sampled from normal distribution
-#         context_distributions = []
-#         for item in config.env.context.sample.items():
-#             ctor_type = item.pop("type")
-#             ctor = context_feat2ctor[ctor_type]
-#             context_distributions.append(ctor(**item))
-#         sampler = ContextSampler(
-#             context_distributions=context_distributions,
-#             context_space=env_ctor.get_context_space(),
-#             seed=config.seed,
-#         )
-#         samples = sampler.sample_contexts(
-#             n_contexts=10 ** len(context_distributions)
-#         )
-#         contexts.extend(samples)
-#     env = env_ctor(
-#         contexts=contexts, obs_context_as_dict=False
-#     )  # Replace this with your Gym env.
-#     env.env.render_mode = "rgb_array"
-#     env = FromGymnasium(env, obs_key=obs_key)
-#     return dreamerv3.wrap_env(env, config)
 
 
 class FromGymnasium(embodied.Env, Generic[U, V]):
@@ -252,3 +227,53 @@ class FromGymnasium(embodied.Env, Generic[U, V]):
         if hasattr(space, "n"):
             return embodied.Space(np.int32, (), 0, space.n)
         return embodied.Space(space.dtype, space.shape, space.low, space.high)
+
+
+# def make_carl_env(config, **overrides):
+#     _, task = config.task.split("_", 1)
+#     obs_key = "obs"
+#     from carl.envs.dmc import (
+#         CARLDmcFingerEnv,
+#         CARLDmcFishEnv,
+#         CARLDmcQuadrupedEnv,
+#         CARLDmcWalkerEnv,
+#     )
+
+#     task2env = {
+#         "dmc_walker": CARLDmcWalkerEnv,
+#         "dmc_finger": CARLDmcFingerEnv,
+#         "dmc_fish": CARLDmcFishEnv,
+#         "dmc_quadruped": CARLDmcQuadrupedEnv,
+#     }
+#     env_ctor = task2env[task]
+#     contexts = config.env.context.fixed.flat()
+
+#     context_feat2ctor = {
+#         "normal": NormalFloatContextFeature,
+#         "uniform": UniformFloatContextFeature,
+#         "uniform_int": UniformIntegerContextFeature,
+#         "categorical": CategoricalContextFeature,
+#     }
+
+#     if config.env.context.sample:
+#         # assuming all contexts can be sampled from normal distribution
+#         context_distributions = []
+#         for item in config.env.context.sample.items():
+#             ctor_type = item.pop("type")
+#             ctor = context_feat2ctor[ctor_type]
+#             context_distributions.append(ctor(**item))
+#         sampler = ContextSampler(
+#             context_distributions=context_distributions,
+#             context_space=env_ctor.get_context_space(),
+#             seed=config.seed,
+#         )
+#         samples = sampler.sample_contexts(
+#             n_contexts=10 ** len(context_distributions)
+#         )
+#         contexts.extend(samples)
+#     env = env_ctor(
+#         contexts=contexts, obs_context_as_dict=False
+#     )  # Replace this with your Gym env.
+#     env.env.render_mode = "rgb_array"
+#     env = FromGymnasium(env, obs_key=obs_key)
+#     return dreamerv3.wrap_env(env, config)

@@ -105,17 +105,29 @@ defaults:
   # Extras
   wandb: {project: contextual_mbrl}
 
-carl_dmc:
-  task: carl_dmc_walker
-  run.steps: 1e6
-  run.train_ratio: 512
+small:
   rssm.deter: 512
   .*\.cnn_depth: 32
-  .*\.layers: 2
   .*\.units: 512
-  encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
-  decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
-  env.carl.context: default
+  .*\.layers: 2
+
+medium:
+  rssm.deter: 1024
+  .*\.cnn_depth: 48
+  .*\.units: 640
+  .*\.layers: 3
+
+large:
+  rssm.deter: 2048
+  .*\.cnn_depth: 64
+  .*\.units: 768
+  .*\.layers: 4
+
+xlarge:
+  rssm.deter: 4096
+  .*\.cnn_depth: 96
+  .*\.units: 1024
+  .*\.layers: 5
 
 debug:
 
@@ -139,3 +151,27 @@ debug:
   .*\.units: 16
   .*\.wd$: 0.0
   wandb: {project: ''}
+
+
+carl_default:
+  env.carl.context: default
+  task: carl_dmc_walker # {options are carl_dmc_walker/carl_dmc_quadruped/carl_brax_halfcheetah/carl_brax_hopper/carl_brax_humanoid}
+  run.steps: 1e6
+  run.train_ratio: 512
+  rssm.deter: 512
+  .*\.cnn_depth: 32
+  .*\.layers: 2
+  .*\.units: 512
+  encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
+  decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
+
+vary_single_context:
+    env.carl.context: vary_single
+
+observe_context:
+  encoder: {mlp_keys: 'obs|context', cnn_keys: '$^'}
+  decoder: {mlp_keys: 'obs|context', cnn_keys: '$^'}
+
+predict_context:
+  encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
+  decoder: {mlp_keys: 'obs|context', cnn_keys: '$^'}
