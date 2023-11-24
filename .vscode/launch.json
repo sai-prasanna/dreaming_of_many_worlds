@@ -12,7 +12,7 @@
             "args": [
                 "--configs",
                 "defaults",
-                "carl_dmc",
+                "carl",
                 "debug",
                 "--logdir",
                 "${workspaceFolder}/logs/debug",

@@ -153,9 +153,9 @@ debug:
   wandb: {project: ''}
 
 
-carl_default:
+carl:
   env.carl.context: default
-  task: carl_dmc_walker # {options are carl_dmc_walker/carl_dmc_quadruped/carl_brax_halfcheetah/carl_brax_hopper/carl_brax_humanoid}
+  task: carl_brax_halfcheetah # {options are carl_dmc_walker/carl_dmc_quadruped/carl_brax_halfcheetah/brax_ant}
   run.steps: 1e6
   run.train_ratio: 512
   rssm.deter: 512
@@ -165,8 +165,17 @@ carl_default:
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
 
+# Context variation configs
+default_context:
+  env.carl.context: default
+
 vary_single_context:
     env.carl.context: vary_single
+
+# Observe
+observe_state:
+  encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
+  decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
 
 observe_context:
   encoder: {mlp_keys: 'obs|context', cnn_keys: '$^'}

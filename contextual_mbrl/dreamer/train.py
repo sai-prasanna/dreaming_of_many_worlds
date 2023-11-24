@@ -1,4 +1,3 @@
-import copy
 import warnings
 
 import dreamerv3
@@ -11,6 +10,7 @@ from contextual_mbrl.dreamer.logger import WandBOutput
 
 def main():
     warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
+    warnings.filterwarnings("ignore", ".*If you want to use these environments.*")
 
     parsed, other = embodied.Flags(configs=["defaults", "carl_dmc"]).parse_known()
     master_config = yaml.YAML(typ="safe").load(

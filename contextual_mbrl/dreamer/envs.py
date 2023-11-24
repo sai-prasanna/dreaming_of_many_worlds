@@ -55,7 +55,8 @@ def make_env(config, **overrides):
 
 
 def make_carl_env(config, **overrides):
-    _, task = config.task.split("_", 1)
+    suite, task = config.task.split("_", 1)
+    assert suite == "carl", suite
     obs_key = "obs"
 
     task2env = {
