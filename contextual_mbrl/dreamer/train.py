@@ -1,54 +1,42 @@
+import copy
+import warnings
+
+import dreamerv3
+import ruamel.yaml as yaml
+from dreamerv3 import embodied
+
+from contextual_mbrl.dreamer.envs import make_envs
+from contextual_mbrl.dreamer.logger import WandBOutput
+
+
 def main():
-    import warnings
-
-    import crafter
-    import dreamerv3
-    from carl.envs.dmc import CARLDmcWalkerEnv
-    from dreamerv3 import embodied
-    from gymnasium.wrappers import StepAPICompatibility
-
-    from contextual_mbrl.dreamer import from_gymnasium
-
     warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
 
-    # See configs.yaml for all options.
-    config = embodied.Config(dreamerv3.configs["defaults"])
-    config = config.update(dreamerv3.configs["small"])
-    config = config.update(
-        {
-            "logdir": "~/logdir/run1",
-            "run.train_ratio": 64,
-            "run.log_every": 30,  # Seconds
-            "batch_size": 16,
-            "jax.prealloc": False,
-            "encoder.mlp_keys": "obs",
-            "decoder.mlp_keys": "obs",
-            "encoder.cnn_keys": "$^",
-            "decoder.cnn_keys": "$^",
-            # 'jax.platform': 'cpu',
-        }
+    parsed, other = embodied.Flags(configs=["defaults", "carl_dmc"]).parse_known()
+    master_config = yaml.YAML(typ="safe").load(
+        (embodied.Path(__file__).parent / "configs.yaml").read()
     )
-    config = embodied.Flags(config).parse()
 
+    config = embodied.Config(master_config["defaults"])
+    for name in parsed.configs:
+        config = config.update(master_config[name])
+    config = embodied.Flags(config).parse(other)
     logdir = embodied.Path(config.logdir)
+    logdir.mkdirs()
+    config.save(logdir / "config.yaml")
     step = embodied.Counter()
-    logger = embodied.Logger(
-        step,
-        [
-            embodied.logger.TerminalOutput(),
-            embodied.logger.JSONLOutput(logdir, "metrics.jsonl"),
-            embodied.logger.TensorBoardOutput(logdir),
-            # embodied.logger.WandBOutput(logdir.name, config),
-        ],
-    )
 
-    env = CARLDmcWalkerEnv(
-        {0: CARLDmcWalkerEnv.get_default_context()}, obs_context_as_dict=False
-    )  # Replace this with your Gym env.
-    env.env.render_mode = "rgb_array"
-    env = from_gymnasium.FromGymnasium(env, obs_key="obs")  # Or obs_key='vector'.
-    env = dreamerv3.wrap_env(env, config)
-    env = embodied.BatchEnv([env], parallel=False)
+    loggers = [
+        embodied.logger.TerminalOutput(),
+        embodied.logger.JSONLOutput(logdir, "metrics.jsonl"),
+        embodied.logger.TensorBoardOutput(logdir),
+    ]
+    if config.wandb.project != "":
+        loggers.append(WandBOutput(".*", logdir, config))
+
+    logger = embodied.Logger(step, loggers)
+
+    env = make_envs(config)
 
     agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
     replay = embodied.replay.Uniform(

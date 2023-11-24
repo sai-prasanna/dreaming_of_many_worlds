@@ -5,6 +5,7 @@
         "editor.codeActionsOnSave": {
             "source.organizeImports": true
         },
+        "debug"
     },
     "isort.args": [
         "--profile",

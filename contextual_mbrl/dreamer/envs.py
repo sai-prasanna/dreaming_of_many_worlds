@@ -1,24 +1,123 @@
-# from_gym.py adapted to work with Gymnasium. Differences:
-#
-# - gym.* -> gymnasium.*
-# - Deals with .step() returning a tuple of (obs, reward, terminated, truncated,
-#   info) rather than (obs, reward, done, info).
-# - Also deals with .reset() returning a tuple of (obs, info) rather than just
-#   obs.
-# - Passes render_mode='rgb_array' to gymnasium.make() rather than .render().
-# - A bunch of minor/irrelevant type checking changes that stopped pyright from
-#   complaining (these have no functional purpose, I'm just a completionist who
-#   doesn't like red squiggles).
-
 import functools
+import importlib
+from functools import partial as bind
 from typing import Any, Dict, Generic, TypeVar, Union, cast
 
+import dreamerv3
 import gymnasium
 import numpy as np
+from carl.context.context_space import (
+    CategoricalContextFeature,
+    NormalFloatContextFeature,
+    UniformFloatContextFeature,
+    UniformIntegerContextFeature,
+)
+from carl.context.sampler import ContextSampler
 from dreamerv3 import embodied
 
 U = TypeVar("U")
 V = TypeVar("V")
+
+
+def make_envs(config, **overrides):
+    suite, task = config.task.split("_", 1)
+    ctors = []
+    for index in range(config.envs.amount):
+        ctor = lambda: make_env(config, **overrides)
+        if config.envs.parallel != "none":
+            ctor = bind(embodied.Parallel, ctor, config.envs.parallel)
+        if config.envs.restart:
+            ctor = bind(embodied.wrappers.RestartOnException, ctor)
+        ctors.append(ctor)
+    envs = [ctor() for ctor in ctors]
+    return embodied.BatchEnv(envs, parallel=(config.envs.parallel != "none"))
+
+
+def make_env(config, **overrides):
+    suite, task = config.task.split("_", 1)
+    if suite == "carl":
+        return make_carl_env(config, **overrides)
+    else:
+        return dreamerv3.train.make_env(config, **overrides)
+
+
+def make_carl_env(config, **overrides):
+    _, task = config.task.split("_", 1)
+    obs_key = "obs"
+    from carl.envs.dmc import (
+        CARLDmcFingerEnv,
+        CARLDmcFishEnv,
+        CARLDmcQuadrupedEnv,
+        CARLDmcWalkerEnv,
+    )
+
+    task2env = {
+        "dmc_walker": CARLDmcWalkerEnv,
+        "dmc_finger": CARLDmcFingerEnv,
+        "dmc_fish": CARLDmcFishEnv,
+        "dmc_quadruped": CARLDmcQuadrupedEnv,
+    }
+    env_ctor = task2env[task]
+    contexts = {}
+    if config.env.carl.context == "default":
+        contexts = None
+
+    env = env_ctor(
+        contexts=contexts, obs_context_as_dict=False
+    )  # Replace this with your Gym env.
+    env.env.render_mode = "rgb_array"
+    env = FromGymnasium(env, obs_key=obs_key)
+    return dreamerv3.wrap_env(env, config)
+
+
+# def make_carl_env(config, **overrides):
+#     _, task = config.task.split("_", 1)
+#     obs_key = "obs"
+#     from carl.envs.dmc import (
+#         CARLDmcFingerEnv,
+#         CARLDmcFishEnv,
+#         CARLDmcQuadrupedEnv,
+#         CARLDmcWalkerEnv,
+#     )
+
+#     task2env = {
+#         "dmc_walker": CARLDmcWalkerEnv,
+#         "dmc_finger": CARLDmcFingerEnv,
+#         "dmc_fish": CARLDmcFishEnv,
+#         "dmc_quadruped": CARLDmcQuadrupedEnv,
+#     }
+#     env_ctor = task2env[task]
+#     contexts = config.env.context.fixed.flat()
+
+#     context_feat2ctor = {
+#         "normal": NormalFloatContextFeature,
+#         "uniform": UniformFloatContextFeature,
+#         "uniform_int": UniformIntegerContextFeature,
+#         "categorical": CategoricalContextFeature,
+#     }
+
+#     if config.env.context.sample:
+#         # assuming all contexts can be sampled from normal distribution
+#         context_distributions = []
+#         for item in config.env.context.sample.items():
+#             ctor_type = item.pop("type")
+#             ctor = context_feat2ctor[ctor_type]
+#             context_distributions.append(ctor(**item))
+#         sampler = ContextSampler(
+#             context_distributions=context_distributions,
+#             context_space=env_ctor.get_context_space(),
+#             seed=config.seed,
+#         )
+#         samples = sampler.sample_contexts(
+#             n_contexts=10 ** len(context_distributions)
+#         )
+#         contexts.extend(samples)
+#     env = env_ctor(
+#         contexts=contexts, obs_context_as_dict=False
+#     )  # Replace this with your Gym env.
+#     env.env.render_mode = "rgb_array"
+#     env = FromGymnasium(env, obs_key=obs_key)
+#     return dreamerv3.wrap_env(env, config)
 
 
 class FromGymnasium(embodied.Env, Generic[U, V]):

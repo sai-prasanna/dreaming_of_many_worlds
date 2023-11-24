@@ -1,0 +1,31 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Train",
+            "type": "python",
+            "request": "launch",
+            "module": "contextual_mbrl.dreamer.train",
+            "args": [
+                "--configs",
+                "defaults",
+                "carl_dmc",
+                "debug",
+                "--logdir",
+                "${workspaceFolder}/logs/debug",
+            ],
+            "justMyCode": false
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}
