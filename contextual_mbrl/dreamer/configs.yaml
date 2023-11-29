@@ -103,7 +103,7 @@ defaults:
   disag_models: 8
 
   # Extras
-  wandb: {project: contextual_mbrl}
+  wandb: {project: contextual_mbrl, group: ""}
 
 small:
   rssm.deter: 512
@@ -152,10 +152,11 @@ debug:
   .*\.wd$: 0.0
   wandb: {project: ''}
 
-
+# Environment
+# options: carl_dmc_walker/car_dmc_quadruped/carl_brax_halfcheetah/carl_brax_ant/carl_classic_pendulum/carl_classic_cartpole
 carl:
   env.carl.context: default
-  task: carl_brax_halfcheetah # {options are carl_dmc_walker/carl_dmc_quadruped/carl_brax_halfcheetah/brax_ant}
+  task: carl_brax_halfcheetah 
   run.steps: 1e6
   run.train_ratio: 512
   rssm.deter: 512
@@ -164,23 +165,30 @@ carl:
   .*\.units: 512
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
-
+####################################################################################################
 # Context variation configs
-default_context:
+# default_ctx/vary_single_ctx
+default_ctx:
   env.carl.context: default
 
-vary_single_context:
+vary_single_ctx:
     env.carl.context: vary_single
-
-# Observe
-observe_state:
+####################################################################################################
+# Observe 
+# options: enc_obs_dec_obs/enc_obs_ctx_dec_obs_ctx/enc_obs_dec_obs_ctx/enc_obs_ctx_dec_obs
+enc_obs_dec_obs:
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
 
-observe_context:
+enc_obs_ctx_dec_obs_ctx:
   encoder: {mlp_keys: 'obs|context', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs|context', cnn_keys: '$^'}
 
-predict_context:
+enc_obs_dec_obs_ctx:
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs|context', cnn_keys: '$^'}
+
+enc_obs_ctx_dec_obs:
+  encoder: {mlp_keys: 'obs|context', cnn_keys: '$^'}
+  decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
+####################################################################################################

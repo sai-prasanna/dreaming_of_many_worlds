@@ -1,16 +1,17 @@
+import os
 import warnings
 
+os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
 import dreamerv3
 import ruamel.yaml as yaml
 from dreamerv3 import embodied
 
 from contextual_mbrl.dreamer.envs import make_envs
-from contextual_mbrl.dreamer.logger import WandBOutput
 
 
 def main():
     warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
-    warnings.filterwarnings("ignore", ".*If you want to use these environments.*")
+    warnings.filterwarnings("once", ".*If you want to use these environments.*")
 
     parsed, other = embodied.Flags(configs=["defaults", "carl_dmc"]).parse_known()
     master_config = yaml.YAML(typ="safe").load(
@@ -32,7 +33,18 @@ def main():
         embodied.logger.TensorBoardOutput(logdir),
     ]
     if config.wandb.project != "":
-        loggers.append(WandBOutput(".*", logdir, config))
+        loggers.append(
+            embodied.logger.WandBOutput(
+                ".*",
+                dict(
+                    **config.wandb,
+                    name=logdir.name,
+                    config=dict(config),
+                    resume=True,
+                    dir=logdir,
+                ),
+            )
+        )
 
     logger = embodied.Logger(step, loggers)
 
@@ -45,7 +57,7 @@ def main():
     args = embodied.Config(
         **config.run,
         logdir=config.logdir,
-        batch_steps=config.batch_size * config.batch_length
+        batch_steps=config.batch_size * config.batch_length,
     )
     embodied.run.train(agent, env, replay, logger, args)
     # embodied.run.eval_only(agent, env, logger, args)

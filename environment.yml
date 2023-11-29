@@ -4,25 +4,19 @@ channels:
   - defaults
 dependencies:
   - python=3.9
-  - pip==21
+  - ffmpeg
+  - pip
   - pip:
-    - setuptools==65.5.0 
-    - wheel==0.38.4
-    - jax[cuda11_pip]==0.4.20 -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-    - jaxlib[cuda11_pip]==0.4.20 -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-    - brax==0.9.3
+    - -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+    - jax[cuda11_pip]==0.4.20
+    - jaxlib[cuda11_pip]==0.4.20
     - carl-bench[brax,dm_control]@git+https://github.com/automl/CARL.git@v1.0.0
     - ipykernel
-    - dreamerv3
     - protobuf==3.20
     - ruamel.yaml==0.17.32
-    - gym==0.25.1
-    - --editable . # Install contextual_mbrl
-    # When we start using tdmpc, we need to install the following packages
-    # - torch==2.1.1 --index-url https://download.pytorch.org/whl/cu118
-    # - torchvision --index-url https://download.pytorch.org/whl/cu118
-    # - moviepy
-    # - hydra-core
-    # - hydra-submitit-launcher
-    # - tensordict
-    # - torchrl
+    - brax==0.9.3
+    - dreamerv3@git+https://github.com/Kinds-of-Intelligence-CFI/dreamerv3-compat.git@85be05b
+    - wandb
+    - moviepy
+    - imageio
+    - --editable .
