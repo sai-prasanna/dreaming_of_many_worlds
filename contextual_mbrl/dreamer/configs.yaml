@@ -153,10 +153,9 @@ debug:
   wandb: {project: ''}
 
 # Environment
-# options: carl_dmc_walker/car_dmc_quadruped/carl_brax_halfcheetah/carl_brax_ant/carl_classic_pendulum/carl_classic_cartpole
 carl:
-  env.carl.context: default
-  task: carl_brax_halfcheetah 
+  env.carl.context: default # default_ctx/vary_single_ctx
+  task: carl_brax_halfcheetah # carl_dmc_walker/car_dmc_quadruped/carl_brax_halfcheetah/carl_brax_ant/carl_classic_pendulum/carl_classic_cartpole
   run.steps: 1e6
   run.train_ratio: 512
   rssm.deter: 512
@@ -165,14 +164,7 @@ carl:
   .*\.units: 512
   encoder: {mlp_keys: 'obs', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
-####################################################################################################
-# Context variation configs
-# default_ctx/vary_single_ctx
-default_ctx:
-  env.carl.context: default
 
-vary_single_ctx:
-    env.carl.context: vary_single
 ####################################################################################################
 # Observe 
 # options: enc_obs_dec_obs/enc_obs_ctx_dec_obs_ctx/enc_obs_dec_obs_ctx/enc_obs_ctx_dec_obs
