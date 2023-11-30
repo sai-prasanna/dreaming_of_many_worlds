@@ -59,6 +59,8 @@ def make_carl_env(config, **overrides):
             "dmc_quadruped": "gravity",
             "brax_ant": "gravity",
             "brax_halfcheetah": "gravity",
+            "classic_cartpole": "gravity",
+            "classic_pendulum": "gravity",
         }
         context_name = task2single_context[task]
         context_default = env_cls.get_default_context()[context_name]
