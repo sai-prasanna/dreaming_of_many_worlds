@@ -183,4 +183,21 @@ enc_obs_dec_obs_ctx:
 enc_obs_ctx_dec_obs:
   encoder: {mlp_keys: 'obs|context', cnn_keys: '$^'}
   decoder: {mlp_keys: 'obs', cnn_keys: '$^'}
+
+
+enc_img_dec_img:
+  encoder: {mlp_keys: '$^', cnn_keys: 'image'}
+  decoder: {mlp_keys: '$^', cnn_keys: 'image'}
+
+enc_img_ctx_dec_img_ctx:
+  encoder: {mlp_keys: 'context', cnn_keys: 'image'}
+  decoder: {mlp_keys: 'context', cnn_keys: 'image'}
+
+enc_img_dec_img_ctx:
+  encoder: {mlp_keys: '$^', cnn_keys: 'image'}
+  decoder: {mlp_keys: 'context', cnn_keys: '$^'}
+
+enc_img_ctx_img_obs:
+  encoder: {mlp_keys: 'context', cnn_keys: 'image'}
+  decoder: {mlp_keys: '$^', cnn_keys: 'image'}
 ####################################################################################################

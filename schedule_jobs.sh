@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --array=0-29
+#SBATCH --array=0-9
 #SBATCH --partition alldlc_gpu-rtx2080
 #SBATCH --job-name CMbRL_array
 #SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
@@ -21,7 +21,8 @@ start=`date +%s`
 
 tasks=("carl_classic_cartpole")
 seeds=("0" "42" "1337" "13" "71")
-schemes=("enc_obs_dec_obs" "enc_obs_ctx_dec_obs_ctx" "enc_obs_dec_obs_ctx")
+#schemes=("enc_obs_dec_obs" "enc_obs_ctx_dec_obs_ctx" "enc_obs_dec_obs_ctx" "enc_obs_ctx_dec_obs")
+schemes=("enc_img_dec_img" "enc_img_ctx_dec_img_ctx" "enc_img_dec_img_ctx" "enc_img_ctx_dec_img")
 contexts=("default" "vary_single")
 
 n_tasks=${#tasks[@]}

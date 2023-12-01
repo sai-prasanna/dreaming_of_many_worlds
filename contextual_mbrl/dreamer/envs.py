@@ -84,4 +84,5 @@ def make_carl_env(config, **overrides):
 
     if config.run.log_keys_video and config.run.log_keys_video[0] == "image":
         env = embodied.core.wrappers.RenderImage(env, key="image")
+        env = embodied.core.wrappers.ResizeImage(env)
     return dreamerv3.wrap_env(env, config)
