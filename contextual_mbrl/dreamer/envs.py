@@ -53,8 +53,8 @@ def make_carl_env(config, **overrides):
     contexts = {}
     if config.env.carl.context == "default":
         contexts = {0: env_cls.get_default_context()}
-    elif config.env.carl.context == "vary_single":
-        task2single_context = {
+    elif config.env.carl.context == "single_0":
+        task2first_context = {
             "dmc_walker": "gravity",
             "dmc_quadruped": "gravity",
             "brax_ant": "gravity",
@@ -62,9 +62,9 @@ def make_carl_env(config, **overrides):
             "classic_cartpole": "gravity",
             "classic_pendulum": "gravity",
         }
-        context_name = task2single_context[task]
+        context_name = task2first_context[task]
         context_default = env_cls.get_default_context()[context_name]
-        l, u = context_default / 2, context_default * 2
+        l, u = context_default * 0.5, context_default * 1.5
         sampler = ContextSampler(
             context_distributions=[UniformFloatContextFeature(context_name, l, u)],
             context_space=env_cls.get_context_space(),
@@ -81,8 +81,6 @@ def make_carl_env(config, **overrides):
         env = TimeLimit(env, max_episode_steps=500)
 
     env = from_gymnasium.FromGymnasium(env, obs_key=obs_key)
-
-    if config.run.log_keys_video and config.run.log_keys_video[0] == "image":
-        env = embodied.core.wrappers.RenderImage(env, key="image")
-        env = embodied.core.wrappers.ResizeImage(env)
+    env = embodied.core.wrappers.RenderImage(env, key="image")
+    env = embodied.core.wrappers.ResizeImage(env)
     return dreamerv3.wrap_env(env, config)

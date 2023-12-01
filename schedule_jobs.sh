@@ -21,9 +21,9 @@ start=`date +%s`
 
 tasks=("carl_classic_cartpole")
 seeds=("0" "42" "1337" "13" "71")
-#schemes=("enc_obs_dec_obs" "enc_obs_ctx_dec_obs_ctx" "enc_obs_dec_obs_ctx" "enc_obs_ctx_dec_obs")
-schemes=("enc_img_dec_img" "enc_img_ctx_dec_img_ctx" "enc_img_dec_img_ctx" "enc_img_ctx_dec_img")
-contexts=("default" "vary_single")
+#schemes=("enc_obs_dec_obs" "enc_obs_ctx_dec_obs_ctx" "enc_obs_dec_obs_ctx")
+schemes=("enc_obs_dec_obs" "enc_obs_ctx_dec_obs_ctx" "enc_obs_dec_obs_ctx" "enc_img_dec_img" "enc_img_ctx_dec_img_ctx" "enc_img_dec_img_ctx")
+contexts=("default" "single_0")
 
 n_tasks=${#tasks[@]}
 n_seeds=${#seeds[@]}
