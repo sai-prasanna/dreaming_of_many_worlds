@@ -60,7 +60,6 @@ def main():
         batch_steps=config.batch_size * config.batch_length,
     )
     embodied.run.train(agent, env, replay, logger, args)
-    # embodied.run.eval_only(agent, env, logger, args)
 
 
 if __name__ == "__main__":

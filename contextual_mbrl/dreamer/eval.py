@@ -1,69 +1,115 @@
+import os
+import re
+import warnings
+
+import numpy as np
+
+os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
+
+import dreamerv3
+import ruamel.yaml as yaml
+from dreamerv3 import embodied
+
+from contextual_mbrl.dreamer.envs import make_envs
+
+
+def eval_only(agent, env, logger, args, prefix="eval", episodes=10):
+    logdir = embodied.Path(args.logdir)
+    logdir.mkdirs()
+    print("Logdir", logdir)
+    metrics = embodied.Metrics()
+    print("Observation space:", env.obs_space)
+    print("Action space:", env.act_space)
+
+    timer = embodied.Timer()
+    timer.wrap("agent", agent, ["policy"])
+    timer.wrap("env", env, ["step"])
+    timer.wrap("logger", logger, ["write"])
+
+    nonzeros = set()
+
+    def per_episode(ep):
+        length = len(ep["reward"]) - 1
+        score = float(ep["reward"].astype(np.float64).sum())
+        print(f"Episode has {length} steps and return {score:.1f}.")
+        stats = {}
+        for key in args.log_keys_video:
+            if key in ep:
+                stats[f"policy_{key}"] = ep[key]
+        metrics.add({"length": length, "score": score}, prefix=f"{prefix}_stats")
+
+    driver = embodied.Driver(env)
+    driver.on_episode(lambda ep, worker: per_episode(ep))
+
+    checkpoint = embodied.Checkpoint()
+    checkpoint.agent = agent
+    checkpoint.load(args.from_checkpoint, keys=["agent"])
+
+    print("Start evaluation loop.")
+    policy = lambda *args: agent.policy(*args, mode="eval")
+    driver(policy, episodes=episodes)
+    print(metrics.result(False))
+    logger.add(metrics.result())
+    logger.add(timer.stats(), prefix="timer")
+    logger.write(fps=True)
+    logger.write()
+
+
 def main():
-    import warnings
-
-    import crafter
-    import dreamerv3
-    from carl.envs.dmc import CARLDmcWalkerEnv
-    from dreamerv3 import embodied
-    from gymnasium.wrappers import StepAPICompatibility
-
-    from contextual_mbrl.dreamer import from_gymnasium
-
     warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
+    warnings.filterwarnings("once", ".*If you want to use these environments.*")
 
-    # See configs.yaml for all options.
-    config = embodied.Config(dreamerv3.configs["defaults"])
-    config = config.update(dreamerv3.configs["small"])
-    config = config.update(
-        {
-            "logdir": "~/logdir/run1",
-            "run.from_checkpoint": "~/logdir/run1/checkpoint.ckpt",
-            "run.train_ratio": 64,
-            "run.log_every": 30,  # Seconds
-            "batch_size": 16,
-            "jax.prealloc": False,
-            "encoder.mlp_keys": "obs",
-            "decoder.mlp_keys": "obs",
-            "encoder.cnn_keys": "$^",
-            "decoder.cnn_keys": "$^",
-            "run.steps": 10000,
-            # 'jax.platform': 'cpu',
-        }
-    )
-    config = embodied.Flags(config).parse()
+    # create argparse with logdir
+    parsed, other = embodied.Flags(logdir="").parse_known()
+    logdir = embodied.Path(parsed.logdir)
+    # load the config from the logdir
+    config = yaml.YAML(typ="safe").load((logdir / "config.yaml").read())
+    config = embodied.Config(config)
+    # parse the overrides for eval
+    config = embodied.Flags(config).parse(other)
 
-    logdir = embodied.Path(config.logdir)
-    step = embodied.Counter()
-    logger = embodied.Logger(
-        step,
-        [
-            embodied.logger.TerminalOutput(),
-            embodied.logger.JSONLOutput(logdir, "metrics.jsonl"),
-            embodied.logger.TensorBoardOutput(logdir),
-            # embodied.logger.WandBOutput(logdir.name, config),
-        ],
-    )
-    ctx = CARLDmcWalkerEnv.get_default_context()
-    ctx["gravity"] = -30
-    env = CARLDmcWalkerEnv(
-        {0: ctx}, obs_context_as_dict=False
-    )  # Replace this with your Gym env.
-    env.env.render_mode = "rgb_array"
-    env = from_gymnasium.FromGymnasium(env, obs_key="obs")  # Or obs_key='vector'.
-    print(env.obs_space)
-    env = dreamerv3.wrap_env(env, config)
-    env = embodied.BatchEnv([env], parallel=False)
+    checkpoint = logdir / "checkpoint.ckpt"
+    assert checkpoint.exists(), checkpoint
+    config = config.update({"run.from_checkpoint": str(checkpoint)})
 
-    agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
-    replay = embodied.replay.Uniform(
-        config.batch_length, config.replay_size, logdir / "replay"
-    )
-    args = embodied.Config(
-        **config.run,
-        logdir=config.logdir,
-        batch_steps=config.batch_size * config.batch_length,
-    )
-    embodied.run.eval_only(agent, env, logger, args)
+    # Just load the step counter from the checkpoint, as there is
+    # a circular dependency to load the agent.
+    ckpt = embodied.Checkpoint()
+    ckpt.step = embodied.Counter()
+    ckpt.load(checkpoint, keys=["step"])
+    step = ckpt._values["step"]
+
+    loggers = [
+        embodied.logger.TerminalOutput(),
+        embodied.logger.JSONLOutput(logdir, "eval_metrics.jsonl"),
+        embodied.logger.TensorBoardOutput(logdir),
+    ]
+    if config.wandb.project != "":
+        loggers.append(
+            embodied.logger.WandBOutput(
+                ".*",
+                dict(
+                    **config.wandb,
+                    name=logdir.name,
+                    config=dict(config),
+                    resume=True,
+                    dir=logdir,
+                ),
+            )
+        )
+
+    logger = embodied.Logger(step, loggers)
+
+    for eval_dist, episodes in [("interpolate", 10), ("extrapolate", 100)]:
+        env = make_envs(config, eval_distribution=eval_dist)
+
+        agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
+        args = embodied.Config(
+            **config.run,
+            logdir=config.logdir,
+            batch_steps=config.batch_size * config.batch_length,
+        )
+        eval_only(agent, env, logger, args, prefix=eval_dist, episodes=episodes)
 
 
 if __name__ == "__main__":
