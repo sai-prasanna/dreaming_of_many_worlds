@@ -10,23 +10,12 @@ import dreamerv3
 import ruamel.yaml as yaml
 from dreamerv3 import embodied
 
-from contextual_mbrl.dreamer.envs import make_envs
+from contextual_mbrl.dreamer.envs import gen_carl_val_envs
 
 
-def eval_only(agent, env, logger, args, prefix="eval", episodes=10):
-    logdir = embodied.Path(args.logdir)
-    logdir.mkdirs()
-    print("Logdir", logdir)
-    metrics = embodied.Metrics()
-    print("Observation space:", env.obs_space)
-    print("Action space:", env.act_space)
-
-    timer = embodied.Timer()
-    timer.wrap("agent", agent, ["policy"])
-    timer.wrap("env", env, ["step"])
-    timer.wrap("logger", logger, ["write"])
-
-    nonzeros = set()
+def eval(agent, env, args, episodes=10):
+    lengths = []
+    rewards = []
 
     def per_episode(ep):
         length = len(ep["reward"]) - 1
@@ -36,7 +25,8 @@ def eval_only(agent, env, logger, args, prefix="eval", episodes=10):
         for key in args.log_keys_video:
             if key in ep:
                 stats[f"policy_{key}"] = ep[key]
-        metrics.add({"length": length, "score": score}, prefix=f"{prefix}_stats")
+        lengths.append(length)
+        rewards.append(score)
 
     driver = embodied.Driver(env)
     driver.on_episode(lambda ep, worker: per_episode(ep))
@@ -48,16 +38,26 @@ def eval_only(agent, env, logger, args, prefix="eval", episodes=10):
     print("Start evaluation loop.")
     policy = lambda *args: agent.policy(*args, mode="eval")
     driver(policy, episodes=episodes)
-    print(metrics.result(False))
-    logger.add(metrics.result())
-    logger.add(timer.stats(), prefix="timer")
-    logger.write(fps=True)
-    logger.write()
+    metrics = {
+        "length": np.mean(lengths),
+        "length_std": np.std(lengths),
+        "length_min": np.min(lengths),
+        "length_max": np.max(lengths),
+        "return": np.mean(rewards),
+        "return_std": np.std(rewards),
+        "return_min": np.min(rewards),
+        "return_max": np.max(rewards),
+        "returns": rewards,
+        "lengths": lengths,
+    }
+
+    return metrics
 
 
 def main():
     warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
     warnings.filterwarnings("once", ".*If you want to use these environments.*")
+    warnings.filterwarnings("module", "carl.*")
 
     # create argparse with logdir
     parsed, other = embodied.Flags(logdir="").parse_known()
@@ -82,34 +82,42 @@ def main():
     loggers = [
         embodied.logger.TerminalOutput(),
         embodied.logger.JSONLOutput(logdir, "eval_metrics.jsonl"),
-        embodied.logger.TensorBoardOutput(logdir),
     ]
-    if config.wandb.project != "":
-        loggers.append(
-            embodied.logger.WandBOutput(
-                ".*",
-                dict(
-                    **config.wandb,
-                    name=logdir.name,
-                    config=dict(config),
-                    resume=True,
-                    dir=logdir,
-                ),
-            )
-        )
 
     logger = embodied.Logger(step, loggers)
 
     for eval_dist, episodes in [("interpolate", 10), ("extrapolate", 100)]:
-        env = make_envs(config, eval_distribution=eval_dist)
-
-        agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
-        args = embodied.Config(
-            **config.run,
-            logdir=config.logdir,
-            batch_steps=config.batch_size * config.batch_length,
-        )
-        eval_only(agent, env, logger, args, prefix=eval_dist, episodes=episodes)
+        returns = []
+        lengths = []
+        for env, ctx_info in gen_carl_val_envs(config, eval_distribution=eval_dist):
+            agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
+            args = embodied.Config(
+                **config.run,
+                logdir=config.logdir,
+                batch_steps=config.batch_size * config.batch_length,
+            )
+            metrics = eval(agent, env, args, episodes=episodes)
+            returns.extend(metrics["return"])
+            lengths.extend(metrics["length"])
+            metrics["context_distribution"] = eval_dist
+            metrics["context"] = ctx_info
+            metrics["aggregate_context_metric"] = False
+            logger.add(metrics)
+            logger.write()
+        metrics = {
+            "return": np.mean(returns),
+            "return_std": np.std(returns),
+            "return_min": np.min(returns),
+            "return_max": np.max(returns),
+            "length": np.mean(lengths),
+            "length_std": np.std(lengths),
+            "length_min": np.min(lengths),
+            "length_max": np.max(lengths),
+            "context_distribution": eval_dist,
+            "aggregate_context_metric": True,
+        }
+        logger.add(metrics)
+        logger.write()
 
 
 if __name__ == "__main__":
