@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --array=0-9
+#SBATCH --array=0-59
 #SBATCH --partition alldlc_gpu-rtx2080
 #SBATCH --job-name CMbRL_array
 #SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
@@ -42,12 +42,8 @@ context=${contexts[$context_index]}
 
 group_name="${task}_${context}_${scheme}"
 
-if [ -d "logs/$group_name/$seed" ]; then
-    echo "logs/$group_name/$seed exists, skipping..."
-    exit 0
-fi
 
-python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps 25000
+python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps 50000
 
 end=`date +%s`
 runtime=$((end-start))
