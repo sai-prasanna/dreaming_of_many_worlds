@@ -99,15 +99,6 @@ def gen_carl_val_envs(config, **overrides):
     suite, task = config.task.split("_", 1)
     assert suite == "carl", suite
     obs_key = "obs"
-
-    task2env = {
-        "dmc_walker": CARLDmcWalkerEnv,
-        "dmc_quadruped": CARLDmcQuadrupedEnv,
-        "brax_ant": CARLBraxAnt,
-        "brax_halfcheetah": CARLBraxHalfcheetah,
-        "classic_pendulum": CARLPendulum,
-        "classic_cartpole": CARLCartPole,
-    }
     env_cls: CARLEnv = _TASK2ENV[task]
     eval_distribution = overrides["eval_distribution"]
     contexts = []
@@ -115,6 +106,7 @@ def gen_carl_val_envs(config, **overrides):
         if eval_distribution == "interpolate":
             contexts = [env_cls.get_default_context()]
         elif eval_distribution == "extrapolate":
+            context_name = _TASK2CONTEXTS[task][0]
             context_default = env_cls.get_default_context()[context_name]
             l, u = context_default * 0.1, context_default * 2.0
             values = np.linspace(l, u, 10)
@@ -170,7 +162,6 @@ def gen_carl_val_envs(config, **overrides):
                 contexts={0: c}, obs_context_as_dict=False
             )  # Replace this with your Gym env.
             env.reset(seed=int(current_process().name.split("-")[-1]) + config.seed)
-            print(int(current_process().name.split("-")[-1]))
             if "dmc" in task:
                 env.env.render_mode = "rgb_array"
             if "classic" in task:
@@ -179,7 +170,7 @@ def gen_carl_val_envs(config, **overrides):
             env = from_gymnasium.FromGymnasium(env, obs_key=obs_key)
             env = embodied.core.wrappers.RenderImage(env, key="image")
             env = embodied.core.wrappers.ResizeImage(env)
-            return env
+            return dreamerv3.wrap_env(env, config)
 
         ctors = []
         for index in range(config.envs.amount):

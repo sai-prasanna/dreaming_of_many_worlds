@@ -17,20 +17,10 @@ source ~/miniconda3/bin/activate # Adjust to your path of Miniconda installation
 conda activate c_mbrl
 
 start=`date +%s`
-
-python -m contextual_mbrl.dreamer.train --configs carl enc_obs_ctx_dec_obs --task carl_classic_cartpole --env.carl.context vary_single --seed 1337 --logdir logs/carl_classic_cartpole_vary_single_enc_obs_ctx_dec_obs/1337 --wandb.group carl_classic_cartpole_vary_single_enc_obs_ctx_dec_obs --jax.policy_devices 0 --jax.train_devices 1 --run.steps 25000
-
-python -m contextual_mbrl.dreamer.train --configs carl enc_obs_ctx_dec_obs --task carl_classic_cartpole --env.carl.context vary_single --seed 0 --logdir logs/carl_classic_cartpole_vary_single_enc_obs_ctx_dec_obs/0 --wandb.group carl_classic_cartpole_vary_single_enc_obs_ctx_dec_obs --jax.policy_devices 0 --jax.train_devices 1 --run.steps 25000
-
-python -m contextual_mbrl.dreamer.train --configs carl enc_obs_ctx_dec_obs --task carl_classic_cartpole --env.carl.context default --seed 0 --logdir logs/carl_classic_cartpole_default_enc_obs_ctx_dec_obs/0 --wandb.group carl_classic_cartpole_default_enc_obs_ctx_dec_obs --jax.policy_devices 0 --jax.train_devices 1 --run.steps 25000
-
-python -m contextual_mbrl.dreamer.train --configs carl enc_obs_dec_obs --task carl_classic_cartpole --env.carl.context vary_single --seed 1337 --logdir logs/carl_classic_cartpole_vary_single_enc_obs_dec_obs/1337 --wandb.group carl_classic_cartpole_vary_single_enc_obs_dec_obs --jax.policy_devices 0 --jax.train_devices 1 --run.steps 25000
-
-python -m contextual_mbrl.dreamer.train --configs carl enc_obs_dec_obs --task carl_classic_cartpole --env.carl.context vary_single --seed 42 --logdir logs/carl_classic_cartpole_vary_single_enc_obs_dec_obs/42 --wandb.group carl_classic_cartpole_vary_single_enc_obs_dec_obs --jax.policy_devices 0 --jax.train_devices 1 --run.steps 30000
-
-python -m contextual_mbrl.dreamer.train --configs carl enc_obs_dec_obs --task carl_classic_cartpole --env.carl.context default --seed 0 --logdir logs/carl_classic_cartpole_default_enc_obs_dec_obs/0 --wandb.group carl_classic_cartpole_default_enc_obs_dec_obs --jax.policy_devices 0 --jax.train_devices 1 --run.steps 25000
-
-
+group_name="carl_classic_cartpole_default_enc_img_ctx_dec_img_ctx"
+seed=0
+python -m contextual_mbrl.dreamer.eval --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1
+python -m contextual_mbrl.dreamer.train --configs carl enc_img_ctx_dec_img_ctx --task carl_classic_cartpole --env.carl.context default --seed 10 --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps 50000
 end=`date +%s`
 runtime=$((end-start))
 

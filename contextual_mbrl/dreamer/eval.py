@@ -1,16 +1,19 @@
+import csv
+import logging
 import os
 import re
 import warnings
 
-import numpy as np
-
-os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
-
 import dreamerv3
+import jsonlines
+import numpy as np
 import ruamel.yaml as yaml
 from dreamerv3 import embodied
 
 from contextual_mbrl.dreamer.envs import gen_carl_val_envs
+
+logging.captureWarnings(True)
+os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
 
 
 def eval(agent, env, args, episodes=10):
@@ -39,14 +42,14 @@ def eval(agent, env, args, episodes=10):
     policy = lambda *args: agent.policy(*args, mode="eval")
     driver(policy, episodes=episodes)
     metrics = {
-        "length": np.mean(lengths),
-        "length_std": np.std(lengths),
-        "length_min": np.min(lengths),
-        "length_max": np.max(lengths),
-        "return": np.mean(rewards),
-        "return_std": np.std(rewards),
-        "return_min": np.min(rewards),
-        "return_max": np.max(rewards),
+        "length": np.mean(lengths).astype(float),
+        "length_std": np.std(lengths).astype(float),
+        "length_min": np.min(lengths).astype(float),
+        "length_max": np.max(lengths).astype(float),
+        "return": np.mean(rewards).astype(float),
+        "return_std": np.std(rewards).astype(float),
+        "return_min": np.min(rewards).astype(float),
+        "return_max": np.max(rewards).astype(float),
         "returns": rewards,
         "lengths": lengths,
     }
@@ -56,6 +59,7 @@ def eval(agent, env, args, episodes=10):
 
 def main():
     warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
+
     warnings.filterwarnings("once", ".*If you want to use these environments.*")
     warnings.filterwarnings("module", "carl.*")
 
@@ -79,13 +83,6 @@ def main():
     ckpt.load(checkpoint, keys=["step"])
     step = ckpt._values["step"]
 
-    loggers = [
-        embodied.logger.TerminalOutput(),
-        embodied.logger.JSONLOutput(logdir, "eval_metrics.jsonl"),
-    ]
-
-    logger = embodied.Logger(step, loggers)
-
     for eval_dist, episodes in [("interpolate", 10), ("extrapolate", 100)]:
         returns = []
         lengths = []
@@ -97,27 +94,33 @@ def main():
                 batch_steps=config.batch_size * config.batch_length,
             )
             metrics = eval(agent, env, args, episodes=episodes)
-            returns.extend(metrics["return"])
-            lengths.extend(metrics["length"])
+            returns.extend(metrics["returns"])
+            lengths.extend(metrics["lengths"])
             metrics["context_distribution"] = eval_dist
             metrics["context"] = ctx_info
-            metrics["aggregate_context_metric"] = False
-            logger.add(metrics)
-            logger.write()
+            metrics["aggregated_context_metric"] = False
+            metrics["checkpoint_step"] = int(step)
+
+            # Write metrics to eval.jsonl
+            with jsonlines.open(logdir / "eval.jsonl", mode="a") as writer:
+                writer.write(metrics)
+
         metrics = {
-            "return": np.mean(returns),
-            "return_std": np.std(returns),
-            "return_min": np.min(returns),
-            "return_max": np.max(returns),
-            "length": np.mean(lengths),
-            "length_std": np.std(lengths),
-            "length_min": np.min(lengths),
-            "length_max": np.max(lengths),
+            "return": np.mean(returns).astype(float),
+            "return_std": np.std(returns).astype(float),
+            "return_min": np.min(returns).astype(float),
+            "return_max": np.max(returns).astype(float),
+            "length": np.mean(lengths).astype(float),
+            "length_std": np.std(lengths).astype(float),
+            "length_min": np.min(lengths).astype(float),
+            "length_max": np.max(lengths).astype(float),
             "context_distribution": eval_dist,
-            "aggregate_context_metric": True,
+            "aggregated_context_metric": True,
+            "checkpoint_step": int(step),
         }
-        logger.add(metrics)
-        logger.write()
+        # Write metrics to eval.jsonl
+        with jsonlines.open(logdir / "eval.jsonl", mode="a", sort_keys=True) as writer:
+            writer.write(metrics)
 
 
 if __name__ == "__main__":

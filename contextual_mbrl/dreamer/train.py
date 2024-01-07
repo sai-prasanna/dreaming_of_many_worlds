@@ -49,7 +49,6 @@ def main():
     logger = embodied.Logger(step, loggers)
 
     env = make_envs(config)
-
     agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
     replay = embodied.replay.Uniform(
         config.batch_length, config.replay_size, logdir / "replay"
