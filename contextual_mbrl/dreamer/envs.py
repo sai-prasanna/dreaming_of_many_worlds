@@ -125,6 +125,7 @@ def gen_carl_val_envs(config, **overrides):
             context_default = env_cls.get_default_context()[context_name]
             # since there is only one context we can only sample independent
             l, u = context_default * 0.5, context_default * 1.5
+            values = np.linspace(l, u, 10)
             for v in values:
                 c = env_cls.get_default_context()
                 c[context_name] = v
