@@ -83,7 +83,7 @@ def main():
     ckpt.load(checkpoint, keys=["step"])
     step = ckpt._values["step"]
 
-    for eval_dist, episodes in [("interpolate", 10), ("extrapolate", 100)]:
+    for eval_dist, episodes in [("interpolate", 100), ("extrapolate", 100)]:
         returns = []
         lengths = []
         for env, ctx_info in gen_carl_val_envs(config, eval_distribution=eval_dist):

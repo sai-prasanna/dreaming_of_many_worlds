@@ -135,13 +135,13 @@ def gen_carl_val_envs(config, **overrides):
             index = int(config.env.carl.context.split("_")[-1])
             context_name = _TASK2CONTEXTS[task][index]
             context_default = env_cls.get_default_context()[context_name]
-            l, u = context_default * 0.1, context_default * 0.9
+            l, u = context_default * 0.1, context_default * 0.4
             values = np.linspace(l, u, 5)
             for v in values:
                 c = env_cls.get_default_context()
                 c[context_name] = v
                 contexts.append(c)
-            l, u = context_default * 1.1, context_default * 2.0
+            l, u = context_default * 1.6, context_default * 2.0
             values = np.linspace(l, u, 5)
             for v in values:
                 c = env_cls.get_default_context()
