@@ -177,7 +177,7 @@ def main():
         logdir=config.logdir,
         batch_steps=config.batch_size * config.batch_length,
     )
-    embodied.run.train(agent, env, replay, logger, args)
+    train(agent, env, replay, logger, args)
 
 
 if __name__ == "__main__":
