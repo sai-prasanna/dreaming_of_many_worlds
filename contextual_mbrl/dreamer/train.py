@@ -132,7 +132,7 @@ def main():
     warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
     warnings.filterwarnings("once", ".*If you want to use these environments.*")
 
-    parsed, other = embodied.Flags(configs=["defaults", "carl_dmc"]).parse_known()
+    parsed, other = embodied.Flags(configs=["defaults"]).parse_known()
     master_config = yaml.YAML(typ="safe").load(
         (embodied.Path(__file__).parent / "configs.yaml").read()
     )

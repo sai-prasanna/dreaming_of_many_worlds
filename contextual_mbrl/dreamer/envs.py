@@ -1,3 +1,4 @@
+import functools
 from functools import partial as bind
 from multiprocessing import current_process
 
@@ -37,12 +38,53 @@ def make_env(config, **overrides):
 
 
 _TASK2CONTEXTS = {
-    "dmc_walker": ["gravity"],
-    "dmc_quadruped": ["gravity"],
-    "brax_ant": ["gravity"],
-    "brax_halfcheetah": ["gravity"],
-    "classic_cartpole": ["gravity"],
-    "classic_pendulum": ["gravity"],
+    "dmc_walker": [
+        {
+            "context": "gravity",
+            "interpolate": [[0.5, 1.5]],
+            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
+        },
+    ],
+    "dmc_quadruped": [
+        {
+            "context": "gravity",
+            "interpolate": [[0.5, 1.5]],
+            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
+        },
+    ],
+    "brax_ant": [
+        {
+            "context": "gravity",
+            "interpolate": [[0.5, 1.5]],
+            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
+        },
+    ],
+    "brax_halfcheetah": [
+        {
+            "context": "gravity",
+            "interpolate": [[0.5, 1.5]],
+            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
+        },
+    ],
+    "classic_cartpole": [
+        {
+            "context": "gravity",
+            "interpolate": [[0.5, 1.5]],
+            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
+        },
+        {
+            "context": "masspole",
+            "interpolate": [[0.5, 1.5]],
+            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
+        },
+    ],
+    "classic_pendulum": [
+        {
+            "context": "gravity",
+            "interpolate": [[0.5, 1.5]],
+            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
+        },
+    ],
 }
 
 _TASK2ENV = {
@@ -55,10 +97,19 @@ _TASK2ENV = {
 }
 
 
+class ResizeImage(embodied.wrappers.ResizeImage):
+    """Change interpolation to BILINEAR"""
+
+    def _resize(self, image):
+        image = self._Image.fromarray(image)
+        image = image.resize(self._size, self._Image.BILINEAR)
+        image = np.array(image)
+        return image
+
+
 def make_carl_env(config, **overrides):
     suite, task = config.task.split("_", 1)
     assert suite == "carl", suite
-    obs_key = "obs"
 
     env_cls: CARLEnv = _TASK2ENV[task]
     contexts = {}
@@ -67,12 +118,37 @@ def make_carl_env(config, **overrides):
         contexts = {0: env_cls.get_default_context()}
     elif "single" in config.env.carl.context:
         index = int(config.env.carl.context.split("_")[-1])
-        context_name = _TASK2CONTEXTS[task][index]
-        context_default = env_cls.get_default_context()[context_name]
+        context_name = _TASK2CONTEXTS[task][index]["context"]
+        ctx_default_val = env_cls.get_default_context()[context_name]
         # since there is only one context we can only sample independent
-        l, u = context_default * 0.5, context_default * 1.5
+        train_ranges = _TASK2CONTEXTS[task][index]["interpolate"]
+        ctx_dists = [
+            UniformFloatContextFeature(
+                context_name, l * ctx_default_val, u * ctx_default_val
+            )
+            for l, u in train_ranges
+        ]
         sampler = ContextSampler(
-            context_distributions=[UniformFloatContextFeature(context_name, l, u)],
+            context_distributions=ctx_dists,
+            context_space=env_cls.get_context_space(),
+            seed=config.seed,
+        )
+        contexts = sampler.sample_contexts(n_contexts=100)
+    elif "double_box" in config.env.carl.context:
+        ctx_dists = []
+        for index in range(2):
+            context_name = _TASK2CONTEXTS[task][index]["context"]
+            ctx_default_val = env_cls.get_default_context()[context_name]
+            # since there is only one context we can only sample independent
+            train_ranges = _TASK2CONTEXTS[task][index]["interpolate"]
+            ctx_dists += [
+                UniformFloatContextFeature(
+                    context_name, l * ctx_default_val, u * ctx_default_val
+                )
+                for l, u in train_ranges
+            ]
+        sampler = ContextSampler(
+            context_distributions=ctx_dists,
             context_space=env_cls.get_context_space(),
             seed=config.seed,
         )
@@ -80,25 +156,12 @@ def make_carl_env(config, **overrides):
     else:
         raise NotImplementedError(f"Context {config.env.carl.context} not implemented.")
 
-    env: CARLEnv = env_cls(
-        contexts=contexts, obs_context_as_dict=False
-    )  # Replace this with your Gym env.
-    env.reset(seed=int(current_process().name.split("-")[-1]) + config.seed)
-    if "dmc" in task:
-        env.env.render_mode = "rgb_array"
-    if "classic" in task:
-        env = TimeLimit(env, max_episode_steps=500)
-
-    env = from_gymnasium.FromGymnasium(env, obs_key=obs_key)
-    env = embodied.core.wrappers.RenderImage(env, key="image")
-    env = embodied.core.wrappers.ResizeImage(env)
-    return dreamerv3.wrap_env(env, config)
+    return create_wrapped_carl_env(env_cls, contexts, config)
 
 
 def gen_carl_val_envs(config, **overrides):
     suite, task = config.task.split("_", 1)
     assert suite == "carl", suite
-    obs_key = "obs"
     env_cls: CARLEnv = _TASK2ENV[task]
     eval_distribution = overrides["eval_distribution"]
     contexts = []
@@ -106,14 +169,16 @@ def gen_carl_val_envs(config, **overrides):
         if eval_distribution == "interpolate":
             contexts = [env_cls.get_default_context()]
         elif eval_distribution == "extrapolate":
-            context_name = _TASK2CONTEXTS[task][0]
+            context_name = _TASK2CONTEXTS[task][0]["context"]
             context_default = env_cls.get_default_context()[context_name]
-            l, u = context_default * 0.1, context_default * 2.0
-            values = np.linspace(l, u, 10)
-            for v in values:
-                c = env_cls.get_default_context()
-                c[context_name] = v
-                contexts.append(c)
+            num_samples = 10 // len(_TASK2CONTEXTS[task][index]["extrapolate"])
+            for l, u in _TASK2CONTEXTS[task][0]["extrapolate"]:
+                l, u = context_default * l, context_default * u
+                values = np.linspace(l, u, num_samples)
+                for v in values:
+                    c = env_cls.get_default_context()
+                    c[context_name] = v
+                    contexts.append(c)
         else:
             raise NotImplementedError(
                 f"Evaluation distribution {eval_distribution} not implemented."
@@ -121,31 +186,91 @@ def gen_carl_val_envs(config, **overrides):
     elif "single" in config.env.carl.context:
         if eval_distribution == "interpolate":
             index = int(config.env.carl.context.split("_")[-1])
-            context_name = _TASK2CONTEXTS[task][index]
+            context_name = _TASK2CONTEXTS[task][index]["context"]
             context_default = env_cls.get_default_context()[context_name]
             # since there is only one context we can only sample independent
-            l, u = context_default * 0.5, context_default * 1.5
-            values = np.linspace(l, u, 10)
-            for v in values:
-                c = env_cls.get_default_context()
-                c[context_name] = v
-                contexts.append(c)
+            num_samples = 10 // len(_TASK2CONTEXTS[task][index]["interpolate"])
+            for l, u in _TASK2CONTEXTS[task][index]["interpolate"]:
+                l, u = context_default * l, context_default * u
+                values = np.linspace(l, u, num_samples)
+                for v in values:
+                    c = env_cls.get_default_context()
+                    c[context_name] = v
+                    contexts.append(c)
         elif eval_distribution == "extrapolate":
             assert "single" in config.env.carl.context
             index = int(config.env.carl.context.split("_")[-1])
-            context_name = _TASK2CONTEXTS[task][index]
+            context_name = _TASK2CONTEXTS[task][index]["context"]
             context_default = env_cls.get_default_context()[context_name]
-            l, u = context_default * 0.1, context_default * 0.4
-            values = np.linspace(l, u, 5)
-            for v in values:
+            num_samples = 10 // len(_TASK2CONTEXTS[task][index]["extrapolate"])
+            for l, u in _TASK2CONTEXTS[task][index]["extrapolate"]:
+                l, u = context_default * l, context_default * u
+                values = np.linspace(l, u, num_samples)
+                for v in values:
+                    c = env_cls.get_default_context()
+                    c[context_name] = v
+                    contexts.append(c)
+
+        else:
+            raise NotImplementedError(
+                f"Evaluation distribution {eval_distribution} not implemented."
+            )
+    elif "double_box" in config.env.carl.context:
+        ctx_0_name = _TASK2CONTEXTS[task][0]["context"]
+        ctx_0_default = env_cls.get_default_context()[ctx_0_name]
+        ctx_0_interpolate_values = []
+        for l, u in _TASK2CONTEXTS[task][0]["interpolate"]:
+            l, u = ctx_0_default * l, ctx_0_default * u
+            values = np.linspace(l, u, 3)
+            ctx_0_interpolate_values += list(values)
+        ctx_0_extrapolate_values = []
+        for l, u in _TASK2CONTEXTS[task][0]["extrapolate"]:
+            l, u = ctx_0_default * l, ctx_0_default * u
+            values = np.linspace(l, u, 3)
+            ctx_0_extrapolate_values += list(values)
+        ctx_1_name = _TASK2CONTEXTS[task][1]["context"]
+        ctx_1_default = env_cls.get_default_context()[ctx_1_name]
+        ctx_1_interpolate_values = []
+        for l, u in _TASK2CONTEXTS[task][1][eval_distribution]:
+            l, u = ctx_1_default * l, ctx_1_default * u
+            values = np.linspace(l, u, 3)
+            ctx_1_interpolate_values += list(values)
+        ctx_1_extrapolate_values = []
+        for l, u in _TASK2CONTEXTS[task][1]["extrapolate"]:
+            l, u = ctx_1_default * l, ctx_1_default * u
+            values = np.linspace(l, u, 3)
+            ctx_1_extrapolate_values += list(values)
+
+        if eval_distribution == "interpolate":
+            for v0, v1 in functools.product(
+                ctx_0_interpolate_values, ctx_1_interpolate_values
+            ):
                 c = env_cls.get_default_context()
-                c[context_name] = v
+                c[ctx_0_name] = v0
+                c[ctx_1_name] = v1
                 contexts.append(c)
-            l, u = context_default * 1.6, context_default * 2.0
-            values = np.linspace(l, u, 5)
-            for v in values:
+        elif eval_distribution == "extrapolate":
+            for v0, v1 in functools.product(
+                ctx_0_extrapolate_values, ctx_1_extrapolate_values
+            ):
                 c = env_cls.get_default_context()
-                c[context_name] = v
+                c[ctx_0_name] = v0
+                c[ctx_1_name] = v1
+                contexts.append(c)
+        elif eval_distribution == "extrapolate_single":
+            for v0, v1 in functools.product(
+                ctx_0_interpolate_values, ctx_1_extrapolate_values
+            ):
+                c = env_cls.get_default_context()
+                c[ctx_0_name] = v0
+                c[ctx_1_name] = v1
+                contexts.append(c)
+            for v0, v1 in functools.product(
+                ctx_0_extrapolate_values, ctx_1_interpolate_values
+            ):
+                c = env_cls.get_default_context()
+                c[ctx_0_name] = v0
+                c[ctx_1_name] = v1
                 contexts.append(c)
         else:
             raise NotImplementedError(
@@ -156,26 +281,15 @@ def gen_carl_val_envs(config, **overrides):
 
     for c in contexts:
         default_context = env_cls.get_default_context()
-        changed_context = {k: v for k, v in c.items() if default_context[k] != v}
-
-        def make_eval_env():
-            env: CARLEnv = env_cls(
-                contexts={0: c}, obs_context_as_dict=False
-            )  # Replace this with your Gym env.
-            env.reset(seed=int(current_process().name.split("-")[-1]) + config.seed)
-            if "dmc" in task:
-                env.env.render_mode = "rgb_array"
-            if "classic" in task:
-                env = TimeLimit(env, max_episode_steps=500)
-
-            env = from_gymnasium.FromGymnasium(env, obs_key=obs_key)
-            env = embodied.core.wrappers.RenderImage(env, key="image")
-            env = embodied.core.wrappers.ResizeImage(env)
-            return dreamerv3.wrap_env(env, config)
-
+        context_info = {
+            item["context"]: c[item["context"]] for item in _TASK2CONTEXTS[task]
+        }  # The context info is the context values for each
+        # context feature which we potentially change
         ctors = []
         for index in range(config.envs.amount):
-            ctor = lambda: make_eval_env()
+            ctor = lambda: create_wrapped_carl_env(
+                env_cls, contexts={0: c}, config=config
+            )
             if config.envs.parallel != "none":
                 ctor = bind(embodied.Parallel, ctor, config.envs.parallel)
             if config.envs.restart:
@@ -184,4 +298,23 @@ def gen_carl_val_envs(config, **overrides):
         envs = [ctor() for ctor in ctors]
         yield embodied.BatchEnv(
             envs, parallel=(config.envs.parallel != "none")
-        ), changed_context
+        ), context_info
+
+
+def create_wrapped_carl_env(env_cls, contexts, config):
+    _, task = config.task.split("_", 1)
+    env: CARLEnv = env_cls(
+        contexts=contexts, obs_context_as_dict=False
+    )  # Replace this with your Gym env.
+    if "dmc" in task:
+        env.env.render_mode = "rgb_array"
+    if "classic" in task:
+        env = TimeLimit(env, max_episode_steps=500)
+    if task == "classic_cartpole":
+        env.env.screen_width = 128
+        env.env.screen_height = 128
+    env.reset(seed=int(current_process().name.split("-")[-1]) + config.seed)
+    env = from_gymnasium.FromGymnasium(env, obs_key="obs")
+    env = embodied.core.wrappers.RenderImage(env, key="image")
+    env = ResizeImage(env)
+    return dreamerv3.wrap_env(env, config)
