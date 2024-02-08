@@ -73,14 +73,9 @@ _TASK2CONTEXTS = {
             "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
         },
         {
-            "context": "masspole",
-            "interpolate": [[0.5, 1.5]],
-            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
-        },
-        {
             "context": "length",
-            "interpolate": [[0.5, 1.5]],
-            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
+            "interpolate": [[0.75, 1.5]],
+            "extrapolate": [[0.25, 0.6], [1.6, 2.0]],
         },
     ],
     "classic_pendulum": [
@@ -121,6 +116,7 @@ def make_carl_env(config, **overrides):
 
     if config.env.carl.context == "default":
         contexts = {0: env_cls.get_default_context()}
+        contexts[0]["length"] *= 2.0
     elif "single" in config.env.carl.context:
         index = int(config.env.carl.context.split("_")[-1])
         context_name = _TASK2CONTEXTS[task][index]["context"]
