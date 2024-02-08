@@ -1,4 +1,4 @@
-import functools
+import itertools
 from functools import partial as bind
 from multiprocessing import current_process
 
@@ -74,6 +74,11 @@ _TASK2CONTEXTS = {
         },
         {
             "context": "masspole",
+            "interpolate": [[0.5, 1.5]],
+            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
+        },
+        {
+            "context": "length",
             "interpolate": [[0.5, 1.5]],
             "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
         },
@@ -169,16 +174,25 @@ def gen_carl_val_envs(config, **overrides):
         if eval_distribution == "interpolate":
             contexts = [env_cls.get_default_context()]
         elif eval_distribution == "extrapolate":
-            context_name = _TASK2CONTEXTS[task][0]["context"]
-            context_default = env_cls.get_default_context()[context_name]
-            num_samples = 10 // len(_TASK2CONTEXTS[task][index]["extrapolate"])
-            for l, u in _TASK2CONTEXTS[task][0]["extrapolate"]:
-                l, u = context_default * l, context_default * u
-                values = np.linspace(l, u, num_samples)
-                for v in values:
-                    c = env_cls.get_default_context()
-                    c[context_name] = v
-                    contexts.append(c)
+            for i in range(len(_TASK2CONTEXTS[task])):
+                context_name = _TASK2CONTEXTS[task][i]["context"]
+                context_default = env_cls.get_default_context()[context_name]
+                num_samples = 10 // len(_TASK2CONTEXTS[task][i]["extrapolate"])
+                for l, u in _TASK2CONTEXTS[task][i]["extrapolate"]:
+                    l, u = context_default * l, context_default * u
+                    values = np.linspace(l, u, num_samples)
+                    for v in values:
+                        c = env_cls.get_default_context()
+                        c[context_name] = v
+                        contexts.append(c)
+                num_samples = 10 // len(_TASK2CONTEXTS[task][i]["interpolate"])
+                for l, u in _TASK2CONTEXTS[task][i]["interpolate"]:
+                    l, u = context_default * l, context_default * u
+                    values = np.linspace(l, u, num_samples)
+                    for v in values:
+                        c = env_cls.get_default_context()
+                        c[context_name] = v
+                        contexts.append(c)
         else:
             raise NotImplementedError(
                 f"Evaluation distribution {eval_distribution} not implemented."
@@ -231,7 +245,7 @@ def gen_carl_val_envs(config, **overrides):
         ctx_1_name = _TASK2CONTEXTS[task][1]["context"]
         ctx_1_default = env_cls.get_default_context()[ctx_1_name]
         ctx_1_interpolate_values = []
-        for l, u in _TASK2CONTEXTS[task][1][eval_distribution]:
+        for l, u in _TASK2CONTEXTS[task][1]["interpolate"]:
             l, u = ctx_1_default * l, ctx_1_default * u
             values = np.linspace(l, u, 3)
             ctx_1_interpolate_values += list(values)
@@ -242,7 +256,7 @@ def gen_carl_val_envs(config, **overrides):
             ctx_1_extrapolate_values += list(values)
 
         if eval_distribution == "interpolate":
-            for v0, v1 in functools.product(
+            for v0, v1 in itertools.product(
                 ctx_0_interpolate_values, ctx_1_interpolate_values
             ):
                 c = env_cls.get_default_context()
@@ -250,7 +264,7 @@ def gen_carl_val_envs(config, **overrides):
                 c[ctx_1_name] = v1
                 contexts.append(c)
         elif eval_distribution == "extrapolate":
-            for v0, v1 in functools.product(
+            for v0, v1 in itertools.product(
                 ctx_0_extrapolate_values, ctx_1_extrapolate_values
             ):
                 c = env_cls.get_default_context()
@@ -258,14 +272,14 @@ def gen_carl_val_envs(config, **overrides):
                 c[ctx_1_name] = v1
                 contexts.append(c)
         elif eval_distribution == "extrapolate_single":
-            for v0, v1 in functools.product(
+            for v0, v1 in itertools.product(
                 ctx_0_interpolate_values, ctx_1_extrapolate_values
             ):
                 c = env_cls.get_default_context()
                 c[ctx_0_name] = v0
                 c[ctx_1_name] = v1
                 contexts.append(c)
-            for v0, v1 in functools.product(
+            for v0, v1 in itertools.product(
                 ctx_0_extrapolate_values, ctx_1_interpolate_values
             ):
                 c = env_cls.get_default_context()
@@ -278,11 +292,15 @@ def gen_carl_val_envs(config, **overrides):
             )
     else:
         raise NotImplementedError(f"Context {config.env.carl.context} not implemented.")
-
     for c in contexts:
         default_context = env_cls.get_default_context()
         context_info = {
-            item["context"]: c[item["context"]] for item in _TASK2CONTEXTS[task]
+            "context": c,
+            "changed": [
+                item["context"]
+                for item in _TASK2CONTEXTS[task]
+                if c[item["context"]] != default_context[item["context"]]
+            ],
         }  # The context info is the context values for each
         # context feature which we potentially change
         ctors = []

@@ -1,4 +1,5 @@
 import os
+import time
 import warnings
 
 os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
@@ -125,6 +126,8 @@ def train(agent, env, replay, logger, args):
             checkpoint.save()
     # save the final checkpoint
     checkpoint.save()
+    if checkpoint._parallel:
+        checkpoint._worker.shutdown(wait=True)
     logger.write()
 
 

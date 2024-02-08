@@ -83,21 +83,26 @@ def main():
     ckpt.load(checkpoint, keys=["step"])
     step = ckpt._values["step"]
 
-    for eval_dist, episodes in [("interpolate", 100), ("extrapolate", 100)]:
+    eval_distributions = ["interpolate", "extrapolate"]
+    if config.env.carl.context == "double_box":
+        eval_distributions.append("extrapolate_single")
+    agent = None
+    for eval_dist in eval_distributions:
         returns = []
         lengths = []
         for env, ctx_info in gen_carl_val_envs(config, eval_distribution=eval_dist):
-            agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
+            if agent is None:
+                agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
             args = embodied.Config(
                 **config.run,
                 logdir=config.logdir,
                 batch_steps=config.batch_size * config.batch_length,
             )
-            metrics = eval(agent, env, args, episodes=episodes)
+            metrics = eval(agent, env, args, episodes=50)
+            env.close()
             returns.extend(metrics["returns"])
             lengths.extend(metrics["lengths"])
-            metrics["context_distribution"] = eval_dist
-            metrics["context"] = ctx_info
+            metrics["ctx"] = {**ctx_info, "dist": eval_dist}
             metrics["aggregated_context_metric"] = False
             metrics["checkpoint_step"] = int(step)
 
