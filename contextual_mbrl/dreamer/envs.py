@@ -12,7 +12,36 @@ from carl.envs.dmc import CARLDmcQuadrupedEnv, CARLDmcWalkerEnv
 from carl.envs.gymnasium.classic_control import CARLCartPole, CARLPendulum
 from dreamerv3 import embodied
 from dreamerv3.embodied.envs import from_gymnasium
+from gymnasium import Wrapper, spaces
 from gymnasium.wrappers.time_limit import TimeLimit
+
+CARTPOLE_TRAIN_GRAVITY_RANGE_PCT = [0.5, 1.5]
+CARTPOLE_TRAIN_LENGTH_RANGE_PCT = [0.75, 1.5]
+
+_TASK2CONTEXTS = {
+    "classic_cartpole": [
+        {
+            "context": "gravity",
+            "interpolate": [CARTPOLE_TRAIN_GRAVITY_RANGE_PCT],
+            "extrapolate": [
+                [0.1, 0.4],
+                [1.6, 2.0],
+            ],
+        },
+        {
+            "context": "length",
+            "interpolate": [CARTPOLE_TRAIN_LENGTH_RANGE_PCT],
+            "extrapolate": [
+                [0.25, 0.6],
+                [1.6, 2.0],
+            ],
+        },
+    ],
+}
+
+_TASK2ENV = {
+    "classic_cartpole": CARLCartPole,
+}
 
 
 def make_envs(config, **overrides):
@@ -37,64 +66,56 @@ def make_env(config, **overrides):
         return dreamerv3.train.make_env(config, **overrides)
 
 
-_TASK2CONTEXTS = {
-    "dmc_walker": [
-        {
-            "context": "gravity",
-            "interpolate": [[0.5, 1.5]],
-            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
-        },
-    ],
-    "dmc_quadruped": [
-        {
-            "context": "gravity",
-            "interpolate": [[0.5, 1.5]],
-            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
-        },
-    ],
-    "brax_ant": [
-        {
-            "context": "gravity",
-            "interpolate": [[0.5, 1.5]],
-            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
-        },
-    ],
-    "brax_halfcheetah": [
-        {
-            "context": "gravity",
-            "interpolate": [[0.5, 1.5]],
-            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
-        },
-    ],
-    "classic_cartpole": [
-        {
-            "context": "gravity",
-            "interpolate": [[0.5, 1.5]],
-            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
-        },
-        {
-            "context": "length",
-            "interpolate": [[0.75, 1.5]],
-            "extrapolate": [[0.25, 0.6], [1.6, 2.0]],
-        },
-    ],
-    "classic_pendulum": [
-        {
-            "context": "gravity",
-            "interpolate": [[0.5, 1.5]],
-            "extrapolate": [[0.1, 0.4], [1.6, 2.0]],
-        },
-    ],
-}
+class NormalizeContextWrapper(Wrapper):
+    _CLASS_TO_CTX_NORMALIZER = {
+        CARLCartPole: {
+            "gravity": CARTPOLE_TRAIN_GRAVITY_RANGE_PCT,
+            "length": CARTPOLE_TRAIN_LENGTH_RANGE_PCT,
+        }
+    }
 
-_TASK2ENV = {
-    "dmc_walker": CARLDmcWalkerEnv,
-    "dmc_quadruped": CARLDmcQuadrupedEnv,
-    "brax_ant": CARLBraxAnt,
-    "brax_halfcheetah": CARLBraxHalfcheetah,
-    "classic_pendulum": CARLPendulum,
-    "classic_cartpole": CARLCartPole,
-}
+    def __init__(self, env):
+        super().__init__(env)
+        assert isinstance(env, CARLEnv)
+        assert "context" in env.observation_space.keys()
+        assert isinstance(env.observation_space["context"], spaces.Box)
+        assert not env.obs_context_as_dict
+        # Normalize context space to [0, 1]
+        self.observation_space["context"] = spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=env.observation_space["context"].shape,
+            dtype=np.float32,
+        )
+        env_klass = type(env)
+        default_context = env_klass.get_default_context()
+        self._train_low = np.array(
+            [
+                self._CLASS_TO_CTX_NORMALIZER[env_klass][k][0] * default_context[k]
+                for k in env.obs_context_features
+            ]
+        )
+        self._train_high = np.array(
+            [
+                self._CLASS_TO_CTX_NORMALIZER[env_klass][k][1] * default_context[k]
+                for k in env.obs_context_features
+            ]
+        )
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        obs["context"] = self._normalize_context(obs["context"])
+        return obs, info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        obs["context"] = self._normalize_context(obs["context"])
+        return obs, reward, terminated, truncated, info
+
+    def _normalize_context(self, context):
+        return (context - self._train_low) / (
+            self._train_high - self._train_low
+        ) * 2 - 1
 
 
 class ResizeImage(embodied.wrappers.ResizeImage):
@@ -116,7 +137,6 @@ def make_carl_env(config, **overrides):
 
     if config.env.carl.context == "default":
         contexts = {0: env_cls.get_default_context()}
-        contexts[0]["length"] *= 2.0
     elif "single" in config.env.carl.context:
         index = int(config.env.carl.context.split("_")[-1])
         context_name = _TASK2CONTEXTS[task][index]["context"]
@@ -317,16 +337,21 @@ def gen_carl_val_envs(config, **overrides):
 
 def create_wrapped_carl_env(env_cls, contexts, config):
     _, task = config.task.split("_", 1)
+    # Only the context features that might change in training or evaluation are # added to the observation space
+    context_features = [o["context"] for o in _TASK2CONTEXTS[task]]
     env: CARLEnv = env_cls(
-        contexts=contexts, obs_context_as_dict=False
+        contexts=contexts,
+        obs_context_as_dict=False,
+        obs_context_features=context_features,
     )  # Replace this with your Gym env.
     if "dmc" in task:
         env.env.render_mode = "rgb_array"
-    if "classic" in task:
-        env = TimeLimit(env, max_episode_steps=500)
     if task == "classic_cartpole":
         env.env.screen_width = 128
         env.env.screen_height = 128
+    env = NormalizeContextWrapper(env)
+    if "classic" in task:
+        env = TimeLimit(env, max_episode_steps=500)
     env.reset(seed=int(current_process().name.split("-")[-1]) + config.seed)
     env = from_gymnasium.FromGymnasium(env, obs_key="obs")
     env = embodied.core.wrappers.RenderImage(env, key="image")
