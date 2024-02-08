@@ -16,25 +16,31 @@ from gymnasium import Wrapper, spaces
 from gymnasium.wrappers.time_limit import TimeLimit
 
 CARTPOLE_TRAIN_GRAVITY_RANGE_PCT = [0.5, 1.5]
-CARTPOLE_TRAIN_LENGTH_RANGE_PCT = [0.75, 1.5]
+CARTPOLE_TRAIN_LENGTH_RANGE_PCT = [0.7, 1.5]
 
 _TASK2CONTEXTS = {
     "classic_cartpole": [
         {
             "context": "gravity",
-            "interpolate": [CARTPOLE_TRAIN_GRAVITY_RANGE_PCT],
+            "train": [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5],
+            "interpolate": [0.55, 0.65, 0.75, 0.85, 0.95, 1.05, 1.15, 1.25, 1.35, 1.45],
             "extrapolate": [
-                [0.1, 0.4],
-                [1.6, 2.0],
+                0.1,
+                0.2,
+                0.3,
+                0.4,
+                1.6,
+                1.7,
+                1.8,
+                1.9,
+                2.0,
             ],
         },
         {
             "context": "length",
-            "interpolate": [CARTPOLE_TRAIN_LENGTH_RANGE_PCT],
-            "extrapolate": [
-                [0.25, 0.6],
-                [1.6, 2.0],
-            ],
+            "train": [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5],
+            "interpolate": [0.75, 0.85, 0.95, 1.05, 1.15, 1.25, 1.35, 1.45],
+            "extrapolate": [0.2, 0.3, 0.4, 0.5, 0.6, 1.6, 1.7, 1.8, 1.9, 2.0],
         },
     ],
 }
@@ -142,38 +148,25 @@ def make_carl_env(config, **overrides):
         context_name = _TASK2CONTEXTS[task][index]["context"]
         ctx_default_val = env_cls.get_default_context()[context_name]
         # since there is only one context we can only sample independent
-        train_ranges = _TASK2CONTEXTS[task][index]["interpolate"]
-        ctx_dists = [
-            UniformFloatContextFeature(
-                context_name, l * ctx_default_val, u * ctx_default_val
-            )
-            for l, u in train_ranges
-        ]
-        sampler = ContextSampler(
-            context_distributions=ctx_dists,
-            context_space=env_cls.get_context_space(),
-            seed=config.seed,
-        )
-        contexts = sampler.sample_contexts(n_contexts=100)
+        train_ranges = _TASK2CONTEXTS[task][index]["train"]
+        contexts = {}
+        for i, val in enumerate(train_ranges):
+            c = env_cls.get_default_context()
+            c[context_name] = val * ctx_default_val
+            contexts[i] = c
     elif "double_box" in config.env.carl.context:
-        ctx_dists = []
-        for index in range(2):
-            context_name = _TASK2CONTEXTS[task][index]["context"]
-            ctx_default_val = env_cls.get_default_context()[context_name]
-            # since there is only one context we can only sample independent
-            train_ranges = _TASK2CONTEXTS[task][index]["interpolate"]
-            ctx_dists += [
-                UniformFloatContextFeature(
-                    context_name, l * ctx_default_val, u * ctx_default_val
-                )
-                for l, u in train_ranges
-            ]
-        sampler = ContextSampler(
-            context_distributions=ctx_dists,
-            context_space=env_cls.get_context_space(),
-            seed=config.seed,
-        )
-        contexts = sampler.sample_contexts(n_contexts=100)
+        ctx_0_name = _TASK2CONTEXTS[task][0]["context"]
+        ctx_1_name = _TASK2CONTEXTS[task][1]["context"]
+        ctx_0_range = _TASK2CONTEXTS[task][0]["train"]
+        ctx_1_range = _TASK2CONTEXTS[task][1]["train"]
+        ctx_0_default = env_cls.get_default_context()[ctx_0_name]
+        ctx_1_default = env_cls.get_default_context()[ctx_1_name]
+        contexts = {}
+        for i, (v0, v1) in enumerate(itertools.product(ctx_0_range, ctx_1_range)):
+            c = env_cls.get_default_context()
+            c[ctx_0_name] = v0 * ctx_0_default
+            c[ctx_1_name] = v1 * ctx_1_default
+            contexts[i] = c
     else:
         raise NotImplementedError(f"Context {config.env.carl.context} not implemented.")
 
@@ -184,141 +177,38 @@ def gen_carl_val_envs(config, **overrides):
     suite, task = config.task.split("_", 1)
     assert suite == "carl", suite
     env_cls: CARLEnv = _TASK2ENV[task]
-    eval_distribution = overrides["eval_distribution"]
-    contexts = []
-    if config.env.carl.context == "default":
-        if eval_distribution == "interpolate":
-            contexts = [env_cls.get_default_context()]
-        elif eval_distribution == "extrapolate":
-            for i in range(len(_TASK2CONTEXTS[task])):
-                context_name = _TASK2CONTEXTS[task][i]["context"]
-                context_default = env_cls.get_default_context()[context_name]
-                num_samples = 10 // len(_TASK2CONTEXTS[task][i]["extrapolate"])
-                for l, u in _TASK2CONTEXTS[task][i]["extrapolate"]:
-                    l, u = context_default * l, context_default * u
-                    values = np.linspace(l, u, num_samples)
-                    for v in values:
-                        c = env_cls.get_default_context()
-                        c[context_name] = v
-                        contexts.append(c)
-                num_samples = 10 // len(_TASK2CONTEXTS[task][i]["interpolate"])
-                for l, u in _TASK2CONTEXTS[task][i]["interpolate"]:
-                    l, u = context_default * l, context_default * u
-                    values = np.linspace(l, u, num_samples)
-                    for v in values:
-                        c = env_cls.get_default_context()
-                        c[context_name] = v
-                        contexts.append(c)
-        else:
-            raise NotImplementedError(
-                f"Evaluation distribution {eval_distribution} not implemented."
-            )
-    elif "single" in config.env.carl.context:
-        if eval_distribution == "interpolate":
-            index = int(config.env.carl.context.split("_")[-1])
-            context_name = _TASK2CONTEXTS[task][index]["context"]
-            context_default = env_cls.get_default_context()[context_name]
-            # since there is only one context we can only sample independent
-            num_samples = 10 // len(_TASK2CONTEXTS[task][index]["interpolate"])
-            for l, u in _TASK2CONTEXTS[task][index]["interpolate"]:
-                l, u = context_default * l, context_default * u
-                values = np.linspace(l, u, num_samples)
-                for v in values:
-                    c = env_cls.get_default_context()
-                    c[context_name] = v
-                    contexts.append(c)
-        elif eval_distribution == "extrapolate":
-            assert "single" in config.env.carl.context
-            index = int(config.env.carl.context.split("_")[-1])
-            context_name = _TASK2CONTEXTS[task][index]["context"]
-            context_default = env_cls.get_default_context()[context_name]
-            num_samples = 10 // len(_TASK2CONTEXTS[task][index]["extrapolate"])
-            for l, u in _TASK2CONTEXTS[task][index]["extrapolate"]:
-                l, u = context_default * l, context_default * u
-                values = np.linspace(l, u, num_samples)
-                for v in values:
-                    c = env_cls.get_default_context()
-                    c[context_name] = v
-                    contexts.append(c)
 
-        else:
-            raise NotImplementedError(
-                f"Evaluation distribution {eval_distribution} not implemented."
-            )
-    elif "double_box" in config.env.carl.context:
-        ctx_0_name = _TASK2CONTEXTS[task][0]["context"]
-        ctx_0_default = env_cls.get_default_context()[ctx_0_name]
-        ctx_0_interpolate_values = []
-        for l, u in _TASK2CONTEXTS[task][0]["interpolate"]:
-            l, u = ctx_0_default * l, ctx_0_default * u
-            values = np.linspace(l, u, 3)
-            ctx_0_interpolate_values += list(values)
-        ctx_0_extrapolate_values = []
-        for l, u in _TASK2CONTEXTS[task][0]["extrapolate"]:
-            l, u = ctx_0_default * l, ctx_0_default * u
-            values = np.linspace(l, u, 3)
-            ctx_0_extrapolate_values += list(values)
-        ctx_1_name = _TASK2CONTEXTS[task][1]["context"]
-        ctx_1_default = env_cls.get_default_context()[ctx_1_name]
-        ctx_1_interpolate_values = []
-        for l, u in _TASK2CONTEXTS[task][1]["interpolate"]:
-            l, u = ctx_1_default * l, ctx_1_default * u
-            values = np.linspace(l, u, 3)
-            ctx_1_interpolate_values += list(values)
-        ctx_1_extrapolate_values = []
-        for l, u in _TASK2CONTEXTS[task][1]["extrapolate"]:
-            l, u = ctx_1_default * l, ctx_1_default * u
-            values = np.linspace(l, u, 3)
-            ctx_1_extrapolate_values += list(values)
+    ctx_0_name = _TASK2CONTEXTS[task][0]["context"]
+    ctx_1_name = _TASK2CONTEXTS[task][1]["context"]
+    ctx_0_range = (
+        _TASK2CONTEXTS[task][0]["interpolate"]
+        + _TASK2CONTEXTS[task][0]["extrapolate"]
+        + [1.0]
+    )
+    ctx_1_range = (
+        _TASK2CONTEXTS[task][1]["interpolate"]
+        + _TASK2CONTEXTS[task][1]["extrapolate"]
+        + [1.0]
+    )
+    ctx_0_default = env_cls.get_default_context()[ctx_0_name]
+    ctx_1_default = env_cls.get_default_context()[ctx_1_name]
+    contexts = {}
+    for i, (v0, v1) in enumerate(itertools.product(ctx_0_range, ctx_1_range)):
+        c = env_cls.get_default_context()
+        c[ctx_0_name] = v0 * ctx_0_default
+        c[ctx_1_name] = v1 * ctx_1_default
+        contexts[i] = c
 
-        if eval_distribution == "interpolate":
-            for v0, v1 in itertools.product(
-                ctx_0_interpolate_values, ctx_1_interpolate_values
-            ):
-                c = env_cls.get_default_context()
-                c[ctx_0_name] = v0
-                c[ctx_1_name] = v1
-                contexts.append(c)
-        elif eval_distribution == "extrapolate":
-            for v0, v1 in itertools.product(
-                ctx_0_extrapolate_values, ctx_1_extrapolate_values
-            ):
-                c = env_cls.get_default_context()
-                c[ctx_0_name] = v0
-                c[ctx_1_name] = v1
-                contexts.append(c)
-        elif eval_distribution == "extrapolate_single":
-            for v0, v1 in itertools.product(
-                ctx_0_interpolate_values, ctx_1_extrapolate_values
-            ):
-                c = env_cls.get_default_context()
-                c[ctx_0_name] = v0
-                c[ctx_1_name] = v1
-                contexts.append(c)
-            for v0, v1 in itertools.product(
-                ctx_0_extrapolate_values, ctx_1_interpolate_values
-            ):
-                c = env_cls.get_default_context()
-                c[ctx_0_name] = v0
-                c[ctx_1_name] = v1
-                contexts.append(c)
-        else:
-            raise NotImplementedError(
-                f"Evaluation distribution {eval_distribution} not implemented."
-            )
-    else:
-        raise NotImplementedError(f"Context {config.env.carl.context} not implemented.")
-    for c in contexts:
         default_context = env_cls.get_default_context()
+        changed = []
+        if v0 != 1.0:
+            changed.append(ctx_0_name)
+        elif v1 != 1.0:
+            changed.append(ctx_1_name)
         context_info = {
             "context": c,
-            "changed": [
-                item["context"]
-                for item in _TASK2CONTEXTS[task]
-                if c[item["context"]] != default_context[item["context"]]
-            ],
-        }  # The context info is the context values for each
-        # context feature which we potentially change
+            "changed": changed,
+        }
         ctors = []
         for index in range(config.envs.amount):
             ctor = lambda: create_wrapped_carl_env(

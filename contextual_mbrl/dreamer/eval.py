@@ -83,48 +83,27 @@ def main():
     ckpt.load(checkpoint, keys=["step"])
     step = ckpt._values["step"]
 
-    eval_distributions = ["interpolate", "extrapolate"]
-    if config.env.carl.context == "double_box":
-        eval_distributions.append("extrapolate_single")
     agent = None
-    for eval_dist in eval_distributions:
-        returns = []
-        lengths = []
-        for env, ctx_info in gen_carl_val_envs(config, eval_distribution=eval_dist):
-            if agent is None:
-                agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
-            args = embodied.Config(
-                **config.run,
-                logdir=config.logdir,
-                batch_steps=config.batch_size * config.batch_length,
-            )
-            metrics = eval(agent, env, args, episodes=50)
-            env.close()
-            returns.extend(metrics["returns"])
-            lengths.extend(metrics["lengths"])
-            metrics["ctx"] = {**ctx_info, "dist": eval_dist}
-            metrics["aggregated_context_metric"] = False
-            metrics["checkpoint_step"] = int(step)
+    returns = []
+    lengths = []
+    for env, ctx_info in gen_carl_val_envs(config):
+        if agent is None:
+            agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
+        args = embodied.Config(
+            **config.run,
+            logdir=config.logdir,
+            batch_steps=config.batch_size * config.batch_length,
+        )
+        metrics = eval(agent, env, args, episodes=50)
+        env.close()
+        returns.extend(metrics["returns"])
+        lengths.extend(metrics["lengths"])
+        metrics["ctx"] = {**ctx_info}
+        metrics["aggregated_context_metric"] = False
+        metrics["checkpoint_step"] = int(step)
 
-            # Write metrics to eval.jsonl
-            with jsonlines.open(logdir / "eval.jsonl", mode="a") as writer:
-                writer.write(metrics)
-
-        metrics = {
-            "return": np.mean(returns).astype(float),
-            "return_std": np.std(returns).astype(float),
-            "return_min": np.min(returns).astype(float),
-            "return_max": np.max(returns).astype(float),
-            "length": np.mean(lengths).astype(float),
-            "length_std": np.std(lengths).astype(float),
-            "length_min": np.min(lengths).astype(float),
-            "length_max": np.max(lengths).astype(float),
-            "context_distribution": eval_dist,
-            "aggregated_context_metric": True,
-            "checkpoint_step": int(step),
-        }
         # Write metrics to eval.jsonl
-        with jsonlines.open(logdir / "eval.jsonl", mode="a", sort_keys=True) as writer:
+        with jsonlines.open(logdir / "eval.jsonl", mode="a") as writer:
             writer.write(metrics)
 
 

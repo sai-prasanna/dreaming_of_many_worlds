@@ -155,7 +155,7 @@ debug:
 # Environment
 carl:
   env.carl.context: default # default_ctx/vary_single_ctx
-  task: carl_brax_halfcheetah # carl_dmc_walker/car_dmc_quadruped/carl_brax_halfcheetah/carl_brax_ant/carl_classic_pendulum/carl_classic_cartpole
+  task: carl_classic_cartpole # carl_dmc_walker/car_dmc_quadruped/carl_brax_halfcheetah/carl_brax_ant/carl_classic_pendulum/carl_classic_cartpole
   run.steps: 1e6
   run.train_ratio: 512
   rssm.deter: 512
