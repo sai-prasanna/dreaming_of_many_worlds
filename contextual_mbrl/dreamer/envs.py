@@ -7,9 +7,9 @@ from typing import Tuple
 
 import dreamerv3
 import numpy as np
-from carl.context import AbstractSelector
 from carl.context.context_space import UniformFloatContextFeature
 from carl.context.sampler import ContextSampler
+from carl.context.selection import AbstractSelector
 from carl.envs.carl_env import CARLEnv
 from carl.envs.dmc import CARLDmcQuadrupedEnv, CARLDmcWalkerEnv
 from carl.envs.gymnasium.classic_control import CARLCartPole, CARLPendulum
