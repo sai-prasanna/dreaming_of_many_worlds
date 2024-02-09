@@ -1,15 +1,19 @@
+import copy
 import itertools
+import random
 from functools import partial as bind
 from multiprocessing import current_process
+from typing import Tuple
 
 import dreamerv3
 import numpy as np
+from carl.context import AbstractSelector
 from carl.context.context_space import UniformFloatContextFeature
 from carl.context.sampler import ContextSampler
-from carl.envs.brax import CARLBraxAnt, CARLBraxHalfcheetah
 from carl.envs.carl_env import CARLEnv
 from carl.envs.dmc import CARLDmcQuadrupedEnv, CARLDmcWalkerEnv
 from carl.envs.gymnasium.classic_control import CARLCartPole, CARLPendulum
+from carl.utils.types import Context, Contexts
 from dreamerv3 import embodied
 from dreamerv3.embodied.envs import from_gymnasium
 from gymnasium import Wrapper, spaces
@@ -124,6 +128,27 @@ class NormalizeContextWrapper(Wrapper):
         ) * 2 - 1
 
 
+class RandomizedRoundRobinSelector(AbstractSelector):
+    """
+    Round robin context selector.
+
+    Iterate through all contexts and then start at the first again.
+    """
+
+    def __init__(self, seed: int, contexts: Contexts):
+        super().__init__(contexts)
+        self.rand = random.Random(seed)
+
+    def _select(self) -> Tuple[Context, int]:
+        if self.context_id is None:
+            self.context_id = -1
+        self.context_id = (self.context_id + 1) % len(self.contexts)
+        if self.context_id == 0:
+            self.rand.shuffle(self.contexts)
+        context = self.contexts[self.contexts_keys[self.context_id]]
+        return context, self.context_id
+
+
 class ResizeImage(embodied.wrappers.ResizeImage):
     """Change interpolation to BILINEAR"""
 
@@ -148,9 +173,9 @@ def make_carl_env(config, **overrides):
         context_name = _TASK2CONTEXTS[task][index]["context"]
         ctx_default_val = env_cls.get_default_context()[context_name]
         # since there is only one context we can only sample independent
-        train_ranges = _TASK2CONTEXTS[task][index]["train"]
+        train_vals = _TASK2CONTEXTS[task][index]["train"]
         contexts = {}
-        for i, val in enumerate(train_ranges):
+        for i, val in enumerate(train_vals):
             c = env_cls.get_default_context()
             c[context_name] = val * ctx_default_val
             contexts[i] = c
@@ -225,14 +250,15 @@ def gen_carl_val_envs(config, **overrides):
         ), context_info
 
 
-def create_wrapped_carl_env(env_cls, contexts, config):
+def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
     _, task = config.task.split("_", 1)
     # Only the context features that might change in training or evaluation are # added to the observation space
     context_features = [o["context"] for o in _TASK2CONTEXTS[task]]
-    env: CARLEnv = env_cls(
-        contexts=contexts,
+    seed = int(current_process().name.split("-")[-1]) + int(config.seed)
+    env = env_cls(
         obs_context_as_dict=False,
         obs_context_features=context_features,
+        context_selector=RandomizedRoundRobinSelector(seed, contexts),
     )  # Replace this with your Gym env.
     if "dmc" in task:
         env.env.render_mode = "rgb_array"
@@ -242,7 +268,8 @@ def create_wrapped_carl_env(env_cls, contexts, config):
     env = NormalizeContextWrapper(env)
     if "classic" in task:
         env = TimeLimit(env, max_episode_steps=500)
-    env.reset(seed=int(current_process().name.split("-")[-1]) + config.seed)
+    # reset once for paranoia
+    env.reset(seed=seed)
     env = from_gymnasium.FromGymnasium(env, obs_key="obs")
     env = embodied.core.wrappers.RenderImage(env, key="image")
     env = ResizeImage(env)
