@@ -27,24 +27,21 @@ _TASK2CONTEXTS = {
         {
             "context": "gravity",
             "train": [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5],
-            "interpolate": [0.55, 0.65, 0.75, 0.85, 0.95, 1.05, 1.15, 1.25, 1.35, 1.45],
+            "interpolate": [0.55, 0.75, 0.95, 1.05, 1.25, 1.45],
             "extrapolate": [
                 0.1,
-                0.2,
-                0.3,
+                0.25,
                 0.4,
                 1.6,
-                1.7,
                 1.8,
-                1.9,
                 2.0,
             ],
         },
         {
             "context": "length",
             "train": [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5],
-            "interpolate": [0.75, 0.85, 0.95, 1.05, 1.15, 1.25, 1.35, 1.45],
-            "extrapolate": [0.2, 0.3, 0.4, 0.5, 0.6, 1.6, 1.7, 1.8, 1.9, 2.0],
+            "interpolate": [0.75, 0.85, 0.95, 1.25, 1.35, 1.45],
+            "extrapolate": [0.2, 0.4, 0.6, 1.6, 1.8, 2.0],
         },
     ],
 }
@@ -224,11 +221,10 @@ def gen_carl_val_envs(config, **overrides):
         c[ctx_1_name] = v1 * ctx_1_default
         contexts[i] = c
 
-        default_context = env_cls.get_default_context()
         changed = []
         if v0 != 1.0:
             changed.append(ctx_0_name)
-        elif v1 != 1.0:
+        if v1 != 1.0:
             changed.append(ctx_1_name)
         context_info = {
             "context": c,
