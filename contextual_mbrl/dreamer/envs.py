@@ -11,7 +11,7 @@ from carl.context.context_space import UniformFloatContextFeature
 from carl.context.sampler import ContextSampler
 from carl.context.selection import AbstractSelector
 from carl.envs.carl_env import CARLEnv
-from carl.envs.dmc import CARLDmcQuadrupedEnv, CARLDmcWalkerEnv
+from carl.envs.dmc import CARLDmcWalkerEnv
 from carl.envs.gymnasium.classic_control import CARLCartPole, CARLPendulum
 from carl.utils.types import Context, Contexts
 from dreamerv3 import embodied
@@ -21,6 +21,9 @@ from gymnasium.wrappers.time_limit import TimeLimit
 
 CARTPOLE_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
 CARTPOLE_TRAIN_LENGTH_RANGE = [0.35, 0.75]
+
+WALKER_TRAIN_GRAVITY_RANGE = [-4.9, -14.70]
+WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE = [0.5, 1.5]
 
 _TASK2CONTEXTS = {
     "classic_cartpole": [
@@ -62,10 +65,40 @@ _TASK2CONTEXTS = {
             "extrapolate_double": [0.1, 0.2, 0.8, 0.9, 1.0],
         },
     ],
+    "dmc_walker": [
+        {
+            "context": "gravity",
+            "train_range": WALKER_TRAIN_GRAVITY_RANGE,
+            "interpolate_single": [-4.9, -7.35, -9.8, 12.25, -14.7],
+            "interpolate_double": [-4.9, -9.8, -14.7],
+            "extrapolate_single": [
+                -0.98,
+                -1.715,
+                -2.45,
+                -3.185,
+                -3.92,
+                -15.68,
+                -16.66,
+                -17.64,
+                -18.62,
+                -19.6,
+            ],
+            "extrapolate_double": [-0.98, -2.45, -3.92, -15.68, -17.64, -19.6],
+        },
+        {
+            "context": "actuator_strength",
+            "train_range": WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE,
+            "interpolate_single": [0.5, 0.75, 1.0, 1.25, 1.5],
+            "interpolate_double": [0.5, 1.0, 1.5],
+            "extrapolate_single": [0.1, 0.2, 0.3, 0.4, 1.6, 1.7, 1.8, 1.9, 2.0],
+            "extrapolate_double": [0.1, 0.3, 1.6, 1.8, 2.0],
+        },
+    ],
 }
 
 _TASK2ENV = {
     "classic_cartpole": CARLCartPole,
+    "dmc_walker": CARLDmcWalkerEnv,
 }
 
 
@@ -96,7 +129,11 @@ class NormalizeContextWrapper(Wrapper):
         CARLCartPole: {
             "gravity": CARTPOLE_TRAIN_GRAVITY_RANGE,
             "length": CARTPOLE_TRAIN_LENGTH_RANGE,
-        }
+        },
+        CARLDmcWalkerEnv: {
+            "gravity": WALKER_TRAIN_GRAVITY_RANGE,
+            "actuator_strength": WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE,
+        },
     }
 
     def __init__(self, env):
@@ -182,6 +219,7 @@ def make_carl_env(config, **overrides):
 
     if config.env.carl.context == "default":
         contexts = {0: env_cls.get_default_context()}
+        contexts[0]["actuator_strength"] = 2.0
     elif "single" in config.env.carl.context:
         index = int(config.env.carl.context.split("_")[-1])
         context_name = _TASK2CONTEXTS[task][index]["context"]
@@ -298,7 +336,10 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
         obs_context_as_dict=False,
         obs_context_features=context_features,
         context_selector=RandomizedRoundRobinSelector(seed, contexts),
+        kwargs={"render_mode": "rgb_array"},
     )  # Replace this with your Gym env.
+    # reset once for paranoia
+    env.reset(seed=seed)
     if "dmc" in task:
         env.env.render_mode = "rgb_array"
     if task == "classic_cartpole":
@@ -307,8 +348,7 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
     env = NormalizeContextWrapper(env)
     if "classic" in task:
         env = TimeLimit(env, max_episode_steps=500)
-    # reset once for paranoia
-    env.reset(seed=seed)
+
     env = from_gymnasium.FromGymnasium(env, obs_key="obs")
     env = embodied.core.wrappers.RenderImage(env, key="image")
     env = ResizeImage(env)
