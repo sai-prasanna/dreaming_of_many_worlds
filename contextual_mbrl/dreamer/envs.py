@@ -19,29 +19,47 @@ from dreamerv3.embodied.envs import from_gymnasium
 from gymnasium import Wrapper, spaces
 from gymnasium.wrappers.time_limit import TimeLimit
 
-CARTPOLE_TRAIN_GRAVITY_RANGE_PCT = [0.5, 1.5]
-CARTPOLE_TRAIN_LENGTH_RANGE_PCT = [0.7, 1.5]
+CARTPOLE_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
+CARTPOLE_TRAIN_LENGTH_RANGE = [0.35, 0.75]
 
 _TASK2CONTEXTS = {
     "classic_cartpole": [
         {
             "context": "gravity",
-            "train": [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5],
-            "interpolate": [0.55, 0.75, 0.95, 1.05, 1.25, 1.45],
-            "extrapolate": [
-                0.1,
-                0.25,
-                0.4,
-                1.6,
-                1.8,
-                2.0,
+            "train_range": CARTPOLE_TRAIN_GRAVITY_RANGE,
+            "interpolate_single": [4.9, 7.35, 9.8, 12.25, 14.7],
+            "interpolate_double": [4.9, 9.8, 14.7],
+            "extrapolate_single": [
+                0.98,
+                1.715,
+                2.45,
+                3.185,
+                3.92,
+                15.68,
+                16.66,
+                17.64,
+                18.62,
+                19.6,
             ],
+            "extrapolate_double": [0.98, 2.45, 3.92, 15.68, 17.64, 19.6],
         },
         {
             "context": "length",
-            "train": [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5],
-            "interpolate": [0.75, 0.85, 0.95, 1.25, 1.35, 1.45],
-            "extrapolate": [0.2, 0.4, 0.6, 1.6, 1.8, 2.0],
+            "train_range": CARTPOLE_TRAIN_LENGTH_RANGE,
+            "interpolate_single": [0.3, 0.4, 0.5, 0.6, 0.7],
+            "interpolate_double": [0.3, 0.5, 0.7],
+            "extrapolate_single": [
+                0.1,
+                0.15,
+                0.2,
+                0.25,
+                0.8,
+                0.85,
+                0.9,
+                0.95,
+                1.0,
+            ],
+            "extrapolate_double": [0.1, 0.2, 0.8, 0.9, 1.0],
         },
     ],
 }
@@ -76,8 +94,8 @@ def make_env(config, **overrides):
 class NormalizeContextWrapper(Wrapper):
     _CLASS_TO_CTX_NORMALIZER = {
         CARLCartPole: {
-            "gravity": CARTPOLE_TRAIN_GRAVITY_RANGE_PCT,
-            "length": CARTPOLE_TRAIN_LENGTH_RANGE_PCT,
+            "gravity": CARTPOLE_TRAIN_GRAVITY_RANGE,
+            "length": CARTPOLE_TRAIN_LENGTH_RANGE,
         }
     }
 
@@ -95,16 +113,15 @@ class NormalizeContextWrapper(Wrapper):
             dtype=np.float32,
         )
         env_klass = type(env)
-        default_context = env_klass.get_default_context()
         self._train_low = np.array(
             [
-                self._CLASS_TO_CTX_NORMALIZER[env_klass][k][0] * default_context[k]
+                self._CLASS_TO_CTX_NORMALIZER[env_klass][k][0]
                 for k in env.obs_context_features
             ]
         )
         self._train_high = np.array(
             [
-                self._CLASS_TO_CTX_NORMALIZER[env_klass][k][1] * default_context[k]
+                self._CLASS_TO_CTX_NORMALIZER[env_klass][k][1]
                 for k in env.obs_context_features
             ]
         )
@@ -168,27 +185,33 @@ def make_carl_env(config, **overrides):
     elif "single" in config.env.carl.context:
         index = int(config.env.carl.context.split("_")[-1])
         context_name = _TASK2CONTEXTS[task][index]["context"]
-        ctx_default_val = env_cls.get_default_context()[context_name]
         # since there is only one context we can only sample independent
-        train_vals = _TASK2CONTEXTS[task][index]["train"]
-        contexts = {}
-        for i, val in enumerate(train_vals):
-            c = env_cls.get_default_context()
-            c[context_name] = val * ctx_default_val
-            contexts[i] = c
+        train_range = _TASK2CONTEXTS[task][index]["train_range"]
+        ctx_dists = [
+            UniformFloatContextFeature(context_name, train_range[0], train_range[1])
+        ]
+        # All workers sample same contexts based on experiment seed
+        sampler = ContextSampler(
+            context_distributions=ctx_dists,
+            context_space=env_cls.get_context_space(),
+            seed=config.seed,
+        )
+        contexts = sampler.sample_contexts(n_contexts=100)
     elif "double_box" in config.env.carl.context:
-        ctx_0_name = _TASK2CONTEXTS[task][0]["context"]
-        ctx_1_name = _TASK2CONTEXTS[task][1]["context"]
-        ctx_0_range = _TASK2CONTEXTS[task][0]["train"]
-        ctx_1_range = _TASK2CONTEXTS[task][1]["train"]
-        ctx_0_default = env_cls.get_default_context()[ctx_0_name]
-        ctx_1_default = env_cls.get_default_context()[ctx_1_name]
-        contexts = {}
-        for i, (v0, v1) in enumerate(itertools.product(ctx_0_range, ctx_1_range)):
-            c = env_cls.get_default_context()
-            c[ctx_0_name] = v0 * ctx_0_default
-            c[ctx_1_name] = v1 * ctx_1_default
-            contexts[i] = c
+        ctx_dists = []
+        for index in range(2):
+            context_name = _TASK2CONTEXTS[task][index]["context"]
+            train_range = _TASK2CONTEXTS[task][index]["train_range"]
+            ctx_dists = [
+                UniformFloatContextFeature(context_name, train_range[0], train_range[1])
+            ]
+        # All workers sample same contexts based on experiment seed
+        sampler = ContextSampler(
+            context_distributions=ctx_dists,
+            context_space=env_cls.get_context_space(),
+            seed=config.seed,
+        )
+        contexts = sampler.sample_contexts(n_contexts=100)
     else:
         raise NotImplementedError(f"Context {config.env.carl.context} not implemented.")
 
@@ -199,41 +222,61 @@ def gen_carl_val_envs(config, **overrides):
     suite, task = config.task.split("_", 1)
     assert suite == "carl", suite
     env_cls: CARLEnv = _TASK2ENV[task]
-
     ctx_0_name = _TASK2CONTEXTS[task][0]["context"]
     ctx_1_name = _TASK2CONTEXTS[task][1]["context"]
-    ctx_0_range = (
-        _TASK2CONTEXTS[task][0]["interpolate"]
-        + _TASK2CONTEXTS[task][0]["extrapolate"]
-        + [1.0]
+    ctx_default = env_cls.get_default_context()
+    ctx_0_default = ctx_default[ctx_0_name]
+    ctx_1_default = ctx_default[ctx_1_name]
+    contexts = []
+    ctx_0_single = (
+        _TASK2CONTEXTS[task][0]["interpolate_single"]
+        + _TASK2CONTEXTS[task][0]["extrapolate_single"]
     )
-    ctx_1_range = (
-        _TASK2CONTEXTS[task][1]["interpolate"]
-        + _TASK2CONTEXTS[task][1]["extrapolate"]
-        + [1.0]
-    )
-    ctx_0_default = env_cls.get_default_context()[ctx_0_name]
-    ctx_1_default = env_cls.get_default_context()[ctx_1_name]
-    contexts = {}
-    for i, (v0, v1) in enumerate(itertools.product(ctx_0_range, ctx_1_range)):
+    assert ctx_0_default in ctx_0_single
+    for v0 in ctx_0_single:
         c = env_cls.get_default_context()
-        c[ctx_0_name] = v0 * ctx_0_default
-        c[ctx_1_name] = v1 * ctx_1_default
-        contexts[i] = c
-
+        c[ctx_0_name] = v0
         changed = []
-        if v0 != 1.0:
+        if v0 != ctx_0_default:
             changed.append(ctx_0_name)
-        if v1 != 1.0:
-            changed.append(ctx_1_name)
-        context_info = {
-            "context": c,
-            "changed": changed,
-        }
+        contexts.append({"context": c, "changed": changed})
+
+    ctx_1_single = (
+        _TASK2CONTEXTS[task][1]["interpolate_single"]
+        + _TASK2CONTEXTS[task][1]["extrapolate_single"]
+    )
+    assert ctx_1_default in ctx_1_single
+    for v1 in ctx_1_single:
+        c = env_cls.get_default_context()
+        c[ctx_1_name] = v1
+        if v1 == ctx_1_default:
+            continue
+        contexts.append({"context": c, "changed": [ctx_1_name]})
+
+    ctx_0_double = (
+        _TASK2CONTEXTS[task][0]["interpolate_double"]
+        + _TASK2CONTEXTS[task][0]["extrapolate_double"]
+    )
+    assert ctx_0_default in ctx_0_double
+    ctx_1_double = (
+        _TASK2CONTEXTS[task][1]["interpolate_double"]
+        + _TASK2CONTEXTS[task][1]["extrapolate_double"]
+    )
+    assert ctx_1_default in ctx_1_double
+    for v0, v1 in itertools.product(ctx_0_double, ctx_1_double):
+        c = env_cls.get_default_context()
+        c[ctx_0_name] = v0
+        c[ctx_1_name] = v1
+        # We make sure that default context is already covered in interpolate single case
+        if v0 == ctx_0_default or v1 == ctx_1_default:
+            continue
+        contexts.append({"context": c, "changed": [ctx_0_name, ctx_1_name]})
+
+    for context_info in contexts:
         ctors = []
         for index in range(config.envs.amount):
             ctor = lambda: create_wrapped_carl_env(
-                env_cls, contexts={0: c}, config=config
+                env_cls, contexts={0: context_info["context"]}, config=config
             )
             if config.envs.parallel != "none":
                 ctor = bind(embodied.Parallel, ctor, config.envs.parallel)
