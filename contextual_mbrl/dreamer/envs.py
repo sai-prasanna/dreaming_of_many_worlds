@@ -22,7 +22,7 @@ from gymnasium.wrappers.time_limit import TimeLimit
 CARTPOLE_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
 CARTPOLE_TRAIN_LENGTH_RANGE = [0.35, 0.75]
 
-WALKER_TRAIN_GRAVITY_RANGE = [-4.9, -14.70]
+WALKER_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
 WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE = [0.5, 1.5]
 
 _TASK2CONTEXTS = {
@@ -68,22 +68,22 @@ _TASK2CONTEXTS = {
     "dmc_walker": [
         {
             "context": "gravity",
-            "train_range": WALKER_TRAIN_GRAVITY_RANGE,
-            "interpolate_single": [-4.9, -7.35, -9.8, 12.25, -14.7],
-            "interpolate_double": [-4.9, -9.8, -14.7],
+            "train_range": CARTPOLE_TRAIN_GRAVITY_RANGE,
+            "interpolate_single": [4.9, 7.35, 9.8, 12.25, 14.7],
+            "interpolate_double": [4.9, 9.8, 14.7],
             "extrapolate_single": [
-                -0.98,
-                -1.715,
-                -2.45,
-                -3.185,
-                -3.92,
-                -15.68,
-                -16.66,
-                -17.64,
-                -18.62,
-                -19.6,
+                0.98,
+                1.715,
+                2.45,
+                3.185,
+                3.92,
+                15.68,
+                16.66,
+                17.64,
+                18.62,
+                19.6,
             ],
-            "extrapolate_double": [-0.98, -2.45, -3.92, -15.68, -17.64, -19.6],
+            "extrapolate_double": [0.98, 2.45, 3.92, 15.68, 17.64, 19.6],
         },
         {
             "context": "actuator_strength",

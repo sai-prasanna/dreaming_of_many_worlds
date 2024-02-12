@@ -10,7 +10,7 @@ dependencies:
     - -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
     - jax[cuda11_pip]==0.4.20
     - jaxlib[cuda11_pip]==0.4.20
-    - carl-bench[brax,dm_control]@git+https://github.com/automl/CARL.git@afbd479a155b0bf6be21c38fd894202593d624ff
+    - carl-bench[brax,dm_control]@git+https://github.com/automl/CARL.git@f4b51b6cfc39b1dea4600750dc52bfae1de50186
     - ipykernel
     - protobuf==3.20
     - ruamel.yaml==0.17.32
