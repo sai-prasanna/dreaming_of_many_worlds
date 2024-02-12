@@ -68,9 +68,9 @@ _TASK2CONTEXTS = {
     "dmc_walker": [
         {
             "context": "gravity",
-            "train_range": CARTPOLE_TRAIN_GRAVITY_RANGE,
-            "interpolate_single": [4.9, 7.35, 9.8, 12.25, 14.7],
-            "interpolate_double": [4.9, 9.8, 14.7],
+            "train_range": WALKER_TRAIN_GRAVITY_RANGE,
+            "interpolate_single": [4.9, 7.35, 9.81, 12.25, 14.7],
+            "interpolate_double": [4.9, 9.81, 14.7],
             "extrapolate_single": [
                 0.98,
                 1.715,
