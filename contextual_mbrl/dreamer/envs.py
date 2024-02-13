@@ -219,7 +219,6 @@ def make_carl_env(config, **overrides):
 
     if config.env.carl.context == "default":
         contexts = {0: env_cls.get_default_context()}
-        contexts[0]["actuator_strength"] = 2.0
     elif "single" in config.env.carl.context:
         index = int(config.env.carl.context.split("_")[-1])
         context_name = _TASK2CONTEXTS[task][index]["context"]
@@ -240,9 +239,9 @@ def make_carl_env(config, **overrides):
         for index in range(2):
             context_name = _TASK2CONTEXTS[task][index]["context"]
             train_range = _TASK2CONTEXTS[task][index]["train_range"]
-            ctx_dists = [
+            ctx_dists.append(
                 UniformFloatContextFeature(context_name, train_range[0], train_range[1])
-            ]
+            )
         # All workers sample same contexts based on experiment seed
         sampler = ContextSampler(
             context_distributions=ctx_dists,
