@@ -82,7 +82,7 @@ def record_dream(agent, env, args, ctx_info, logdir):
         # draw a rectange around first 64 *5 pixels horizontally and 192 pixels vertically
         cv2.rectangle(video, (0, 0), (64 * 5, 192), (0, 0, 0), 2)
         # save the
-        cv2.imwrite(str(logdir / f"{fname}.png"), video)
+        cv2.imwrite(str(logdir / f"{fname}.png"), video[:, :, ::-1])
 
     driver = embodied.Driver(env)
     driver.on_episode(lambda ep, worker: per_episode(ep))
