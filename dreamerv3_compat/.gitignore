@@ -1,0 +1,9 @@
+.pytest_cache
+.venv
+dist
+wandb/
+__pycache__/
+*.py[cod]
+*.egg-info
+MUJOCO_LOG.TXT
+;
