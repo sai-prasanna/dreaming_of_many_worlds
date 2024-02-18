@@ -49,20 +49,21 @@ _TASK2CONTEXTS = {
         {
             "context": "length",
             "train_range": CARTPOLE_TRAIN_LENGTH_RANGE,
-            "interpolate_single": [0.3, 0.4, 0.5, 0.6, 0.7],
-            "interpolate_double": [0.3, 0.5, 0.7],
+            "interpolate_single": [0.4, 0.5, 0.6, 0.7],
+            "interpolate_double": [0.5, 0.7],
             "extrapolate_single": [
                 0.1,
                 0.15,
                 0.2,
                 0.25,
+                0.3,
                 0.8,
                 0.85,
                 0.9,
                 0.95,
                 1.0,
             ],
-            "extrapolate_double": [0.1, 0.2, 0.8, 0.9, 1.0],
+            "extrapolate_double": [0.1, 0.2, 0.3, 0.8, 0.9, 1.0],
         },
     ],
     "dmc_walker": [
@@ -249,6 +250,16 @@ def make_carl_env(config, **overrides):
             seed=config.seed,
         )
         contexts = sampler.sample_contexts(n_contexts=100)
+    elif "specific" in config.env.carl.context:
+        ctx_vals = {
+            int(v.split("-")[0]): float(v.split("-")[-1])
+            for v in config.env.carl.context.split("_")[1:]
+        }
+        specific_context = env_cls.get_default_context()
+        for i, val in ctx_vals.items():
+            context_name = _TASK2CONTEXTS[task][i]["context"]
+            specific_context[context_name] = val
+        contexts[0] = specific_context
     else:
         raise NotImplementedError(f"Context {config.env.carl.context} not implemented.")
 
@@ -265,49 +276,64 @@ def gen_carl_val_envs(config, **overrides):
     ctx_0_default = ctx_default[ctx_0_name]
     ctx_1_default = ctx_default[ctx_1_name]
     contexts = []
-    ctx_0_single = (
-        _TASK2CONTEXTS[task][0]["interpolate_single"]
-        + _TASK2CONTEXTS[task][0]["extrapolate_single"]
-    )
-    assert ctx_0_default in ctx_0_single
-    for v0 in ctx_0_single:
+
+    if "specific" in config.env.carl.context:
+        ctx_vals = {
+            int(v.split("-")[0]): float(v.split("-")[-1])
+            for v in config.env.carl.context.split("_")[1:]
+        }
         c = env_cls.get_default_context()
-        c[ctx_0_name] = v0
         changed = []
-        if v0 != ctx_0_default:
-            changed.append(ctx_0_name)
+        for i, val in ctx_vals.items():
+            context_name = _TASK2CONTEXTS[task][i]["context"]
+            c[context_name] = val
+            changed.append(context_name)
         contexts.append({"context": c, "changed": changed})
+    else:
 
-    ctx_1_single = (
-        _TASK2CONTEXTS[task][1]["interpolate_single"]
-        + _TASK2CONTEXTS[task][1]["extrapolate_single"]
-    )
-    assert ctx_1_default in ctx_1_single
-    for v1 in ctx_1_single:
-        c = env_cls.get_default_context()
-        c[ctx_1_name] = v1
-        if v1 == ctx_1_default:
-            continue
-        contexts.append({"context": c, "changed": [ctx_1_name]})
+        ctx_0_single = (
+            _TASK2CONTEXTS[task][0]["interpolate_single"]
+            + _TASK2CONTEXTS[task][0]["extrapolate_single"]
+        )
+        assert ctx_0_default in ctx_0_single
+        for v0 in ctx_0_single:
+            c = env_cls.get_default_context()
+            c[ctx_0_name] = v0
+            changed = []
+            if v0 != ctx_0_default:
+                changed.append(ctx_0_name)
+            contexts.append({"context": c, "changed": changed})
 
-    ctx_0_double = (
-        _TASK2CONTEXTS[task][0]["interpolate_double"]
-        + _TASK2CONTEXTS[task][0]["extrapolate_double"]
-    )
-    assert ctx_0_default in ctx_0_double
-    ctx_1_double = (
-        _TASK2CONTEXTS[task][1]["interpolate_double"]
-        + _TASK2CONTEXTS[task][1]["extrapolate_double"]
-    )
-    assert ctx_1_default in ctx_1_double
-    for v0, v1 in itertools.product(ctx_0_double, ctx_1_double):
-        c = env_cls.get_default_context()
-        c[ctx_0_name] = v0
-        c[ctx_1_name] = v1
-        # We make sure that default context is already covered in interpolate single case
-        if v0 == ctx_0_default or v1 == ctx_1_default:
-            continue
-        contexts.append({"context": c, "changed": [ctx_0_name, ctx_1_name]})
+        ctx_1_single = (
+            _TASK2CONTEXTS[task][1]["interpolate_single"]
+            + _TASK2CONTEXTS[task][1]["extrapolate_single"]
+        )
+        assert ctx_1_default in ctx_1_single
+        for v1 in ctx_1_single:
+            c = env_cls.get_default_context()
+            c[ctx_1_name] = v1
+            if v1 == ctx_1_default:
+                continue
+            contexts.append({"context": c, "changed": [ctx_1_name]})
+
+        ctx_0_double = (
+            _TASK2CONTEXTS[task][0]["interpolate_double"]
+            + _TASK2CONTEXTS[task][0]["extrapolate_double"]
+        )
+        assert ctx_0_default in ctx_0_double
+        ctx_1_double = (
+            _TASK2CONTEXTS[task][1]["interpolate_double"]
+            + _TASK2CONTEXTS[task][1]["extrapolate_double"]
+        )
+        assert ctx_1_default in ctx_1_double
+        for v0, v1 in itertools.product(ctx_0_double, ctx_1_double):
+            c = env_cls.get_default_context()
+            c[ctx_0_name] = v0
+            c[ctx_1_name] = v1
+            # We make sure that default context is already covered in interpolate single case
+            if v0 == ctx_0_default or v1 == ctx_1_default:
+                continue
+            contexts.append({"context": c, "changed": [ctx_0_name, ctx_1_name]})
 
     for context_info in contexts:
         ctors = []
