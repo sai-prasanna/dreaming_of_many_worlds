@@ -131,13 +131,21 @@ def _wrap_dream_agent(agent):
     return gen_dream
 
 
-def record_dream(agent, env, args, ctx_info, logdir, dream_agent_fn):
+def record_dream(
+    agent, env, args, ctx_info, logdir, dream_agent_fn, override_length_ctx
+):
     report = None
 
     def per_episode(ep):
         nonlocal agent, report
         mode = ctx_info["mode"]
         batch = {k: np.stack([v], 0) for k, v in ep.items()}
+        if override_length_ctx >= 0:
+            batch["context"][..., 1:] = (
+                override_length_ctx - CARTPOLE_TRAIN_LENGTH_RANGE[0]
+            ) / (
+                CARTPOLE_TRAIN_LENGTH_RANGE[1] - CARTPOLE_TRAIN_LENGTH_RANGE[0]
+            ) * 2 - 1
         jax_batch = agent._convert_inps(batch, agent.train_devices)
         rng = agent._next_rngs(agent.train_devices)
         report, _ = dream_agent_fn(agent.varibs, rng, jax_batch)
@@ -153,6 +161,7 @@ def record_dream(agent, env, args, ctx_info, logdir, dream_agent_fn):
             # post_ctx = (report["ctx_post"][0] + 1) / 2 * (
             #     CARTPOLE_TRAIN_LENGTH_RANGE[1] - CARTPOLE_TRAIN_LENGTH_RANGE[0]
             # ) + CARTPOLE_TRAIN_LENGTH_RANGE[0]
+            print(ctx[..., 1])
             for i in range(len(video)):
                 video[i] = cv2.putText(
                     video[i],
@@ -174,16 +183,16 @@ def record_dream(agent, env, args, ctx_info, logdir, dream_agent_fn):
                     1,
                     cv2.LINE_AA,
                 )
-                video[i] = cv2.putText(
-                    video[i],
-                    f"{ctx[i][0] - ctx[i][1]:.2f}",
-                    (10, 64 * 2 + 15),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 0, 0),
-                    1,
-                    cv2.LINE_AA,
-                )
+                # video[i] = cv2.putText(
+                #     video[i],
+                #     f"{ctx[i][0] - ctx[i][1]:.2f}",
+                #     (10, 64 * 2 + 15),
+                #     cv2.FONT_HERSHEY_SIMPLEX,
+                #     0.5,
+                #     (0, 0, 0),
+                #     1,
+                #     cv2.LINE_AA,
+                # )
                 # video[i] = cv2.putText(
                 #     video[i],
                 #     f"{post_ctx[i][0]:.2f}",
@@ -219,7 +228,13 @@ def record_dream(agent, env, args, ctx_info, logdir, dream_agent_fn):
         l = ctx_info["context"]["length"]
 
         fname = f"{mode}_length_{l:0.2f}"
-        with open(logdir / f"{fname}.gif", "wb") as f:
+        path = logdir / (
+            f"cart_dreams_{override_length_ctx}"
+            if override_length_ctx >= 0
+            else "cart_dreams"
+        )
+        path.mkdirs()
+        with open(path / f"{fname}.gif", "wb") as f:
             f.write(encoded_img_str)
         # find the first terminate index
         if np.where(report["terminate"] > 0)[0].size > 0:
@@ -232,7 +247,7 @@ def record_dream(agent, env, args, ctx_info, logdir, dream_agent_fn):
         # draw a rectange around first 64 *5 pixels horizontally and 192 pixels vertically
         cv2.rectangle(video, (0, 0), (64 * 5, 192), (0, 128, 0), 2)
         # save the
-        cv2.imwrite(str(logdir / f"{fname}.png"), video[:, :, ::-1])
+        cv2.imwrite(str(path / f"{fname}.png"), video[:, :, ::-1])
 
     driver = embodied.Driver(env)
     driver.on_episode(lambda ep, worker: per_episode(ep))
@@ -252,8 +267,9 @@ def main():
     warnings.filterwarnings("module", "carl.*")
 
     # create argparse with logdir
-    parsed, other = embodied.Flags(logdir="").parse_known()
+    parsed, other = embodied.Flags(logdir="", ctx_length=-1.0).parse_known()
     logdir = embodied.Path(parsed.logdir)
+    ctx_length = parsed.ctx_length
     # load the config from the logdir
     config = yaml.YAML(typ="safe").load((logdir / "config.yaml").read())
     config = embodied.Config(config)
@@ -283,9 +299,16 @@ def main():
             logdir=config.logdir,
             batch_steps=config.batch_size * config.batch_length,
         )
-        record_dream(agent, env, args, ctx_info, logdir, dream_agent_fn)
+        record_dream(agent, env, args, ctx_info, logdir, dream_agent_fn, ctx_length)
         env.close()
 
 
 if __name__ == "__main__":
+    # import sys
+
+    # sys.argv[1:] = (
+    #     "--logdir logs/carl_classic_cartpole_single_1_enc_img_ctx_dec_img_ctx_normalized_mse/0/ --jax.train_devices 0 --jax.policy_devices 0".split(
+    #         " "
+    #     )
+    # )
     main()
