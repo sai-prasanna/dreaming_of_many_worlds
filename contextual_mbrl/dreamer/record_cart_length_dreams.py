@@ -70,17 +70,16 @@ def _wrap_dream_agent(agent):
         report = {}
         report.update(wm.loss(data, state)[-1][-1])
         posterior_states, _ = wm.rssm.observe(
-            wm.encoder(data), data["action"], data["is_first"]
+            wm.encoder(data)[:, :5], data["action"][:, :5], data["is_first"][:, :5]
         )
+
         # when we decode posterior frames, we are just reconstructing as we
         # have the ground truth observations used for infering the latents
         # posterior_reconst = wm.heads["decoder"](posterior_states)
         # posterior_cont = wm.heads["cont"](posterior_states)
 
-        posterior_states_5 = {k: v[:, :5] for k, v in posterior_states.items()}
-
-        posterior_reconst_5 = wm.heads["decoder"](posterior_states_5)
-        posterior_cont_5 = wm.heads["cont"](posterior_states_5)
+        posterior_reconst_5 = wm.heads["decoder"](posterior_states)
+        posterior_cont_5 = wm.heads["cont"](posterior_states)
 
         # we can start imaginign from the last state of the posterior and all our actions
         start = {k: v[:, -1] for k, v in posterior_states.items()}
@@ -161,7 +160,6 @@ def record_dream(
             # post_ctx = (report["ctx_post"][0] + 1) / 2 * (
             #     CARTPOLE_TRAIN_LENGTH_RANGE[1] - CARTPOLE_TRAIN_LENGTH_RANGE[0]
             # ) + CARTPOLE_TRAIN_LENGTH_RANGE[0]
-            print(ctx[..., 1])
             for i in range(len(video)):
                 video[i] = cv2.putText(
                     video[i],
