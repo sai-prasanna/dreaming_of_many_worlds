@@ -42,11 +42,6 @@ context=${contexts[$context_index]}
 
 group_name="${task}_${context}_${scheme}_normalized"
 
-# if the log directory already exists, skip the job
-if [ -d "logs/$group_name/$seed" ]; then
-    echo "Log directory exists, skipping job"
-    exit 0
-fi
 
 python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps 100000
 python -m contextual_mbrl.dreamer.eval --logdir logs/$group_name/$seed

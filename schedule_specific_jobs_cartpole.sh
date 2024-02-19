@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --array=0-19
+#SBATCH --array=0-9
 #SBATCH --partition alldlc_gpu-rtx2080
 #SBATCH --job-name CMbRL_specific_cartpole
 #SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
@@ -27,8 +27,9 @@ schemes=("enc_obs_dec_obs")
 # grav, len [(2.45, 0.2), (17.64, 0.2), (17.64, 0.9), (2.45, 0.9)]
 # contexts=("specific_0-0.98" "specific_0-2.45" "specific_0-3.92" "specific_0-4.9" "specific_0-9.8" "specific_0-14.7" "specific_0-15.68" "specific_0-17.64" "specific_0-19.6" "specific_1-0.1" "specific_1-0.2" "specific_1-0.3" "specific_1-0.5" "specific_1-0.7" "specific_1-0.8" "specific_1-0.9" "specific_1-1.0")
 
-contexts=("specific_0-2.46_1-0.2" "specific_0-17.64_1-0.2" "specific_0-17.64_1-0.2" "specific_0-2.45_1-0.9")
+#contexts=("specific_0-2.45_1-0.2" "specific_0-17.64_1-0.2" "specific_0-17.64_1-0.9" "specific_0-2.45_1-0.9")
 
+contexts=("specific_0-2.45_1-0.2" "specific_0-17.64_1-0.9")
 
 n_tasks=${#tasks[@]}
 n_seeds=${#seeds[@]}
