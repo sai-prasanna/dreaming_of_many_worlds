@@ -15,7 +15,7 @@ dependencies:
     - protobuf==3.20
     - ruamel.yaml==0.17.32
     - brax==0.9.3
-    #- dreamerv3@git+https://github.com/Kinds-of-Intelligence-CFI/dreamerv3-compat.git@85be05b
+    - -e ./dreamerv3_compat
     - wandb
     - moviepy
     - imageio

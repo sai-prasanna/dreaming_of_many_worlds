@@ -4,7 +4,7 @@ import os
 import re
 import warnings
 
-import dreamerv3_compat.dreamerv3 as dreamerv3
+import dreamerv3
 import jsonlines
 import numpy as np
 import ruamel.yaml as yaml

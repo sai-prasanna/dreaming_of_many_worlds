@@ -5,7 +5,7 @@ from functools import partial as bind
 from multiprocessing import current_process
 from typing import Tuple
 
-import dreamerv3_compat.dreamerv3 as dreamerv3
+import dreamerv3
 import numpy as np
 from carl.context.context_space import UniformFloatContextFeature
 from carl.context.sampler import ContextSampler

@@ -77,8 +77,12 @@ class Agent(nj.Module):
         )
 
         self.expl_behavior.policy(latent, expl_state, dcontext=dcontext)
-        task_outs, task_state = self.task_behavior.policy(latent, task_state, dcontext=dcontext)
-        expl_outs, expl_state = self.expl_behavior.policy(latent, expl_state, dcontext=dcontext)
+        task_outs, task_state = self.task_behavior.policy(
+            latent, task_state, dcontext=dcontext
+        )
+        expl_outs, expl_state = self.expl_behavior.policy(
+            latent, expl_state, dcontext=dcontext
+        )
         if mode == "eval":
             outs = task_outs
             outs["action"] = outs["action"].sample(seed=nj.rng())
@@ -157,7 +161,6 @@ class WorldModel(nj.Module):
         scales.update({k: image for k in self.heads["decoder"].cnn_shapes})
         scales.update({k: vector for k in self.heads["decoder"].mlp_shapes})
         self.scales = scales
-        self._add_dcontext = nonzero_in("add_dcontext", config)
 
     def initial(self, batch_size):
         prev_latent = self.rssm.initial(batch_size)
@@ -191,7 +194,6 @@ class WorldModel(nj.Module):
         if self.rssm._add_dcontext:
             feats["context"] = data["context"]
 
-
         # add to heads if add_context is True
         for name, head in self.heads.items():
             out = head(feats if name in self.config.grad_heads else sg(feats))
@@ -217,16 +219,23 @@ class WorldModel(nj.Module):
     def imagine(self, policy, start, horizon):
         first_cont = (1.0 - start["is_terminal"]).astype(jnp.float32)
         keys = list(self.rssm.initial(1).keys())
-        start = {k: v for k, v in start.items() if k in keys or (self._add_dcontext and k == "context")}
+        start = {
+            k: v
+            for k, v in start.items()
+            if k in keys or (self.rssm._add_dcontext and k == "context")
+        }
 
         start["action"] = policy(start)
-
 
         def step(prev, _):
             context_avail = "context" in prev
             prev = prev.copy()
             action = prev.pop("action")
-            context = prev.pop("context") if context_avail and self.rssm._add_dcontext else None
+            context = (
+                prev.pop("context")
+                if context_avail and self.rssm._add_dcontext
+                else None
+            )
             state = self.rssm.img_step(prev, action, dcontext=context)  # here
             state = {**state, "context": context} if context_avail else state
             return {**state, "action": policy(state)}
@@ -249,17 +258,26 @@ class WorldModel(nj.Module):
             data["is_first"][:6, :5],
             dcontext=data["context"][:6, :5] if self.rssm._add_dcontext else None,
         )
-        #add context to context dict
+        # add context to context dict
         # if self.rssm._add_dcontext:
         #     context["context"] = data["context"][:6, :5]
         start = {k: v[:, -1] for k, v in context.items()}
-        recon = self.heads["decoder"]({**context, "context": data["context"][:6, :5] if self.rssm._add_dcontext else None})
+        recon = self.heads["decoder"](
+            {
+                **context,
+                "context": data["context"][:6, :5] if self.rssm._add_dcontext else None,
+            }
+        )
         imagined = self.rssm.imagine(
-                data["action"][:6, 5:],
-                start,
-                dcontext=data["context"][:6, 5:] if self.rssm._add_dcontext else None,
-            )
-        imagined = {**imagined, "context": data["context"][:6, 5:]} if self.rssm._add_dcontext else imagined
+            data["action"][:6, 5:],
+            start,
+            dcontext=data["context"][:6, 5:] if self.rssm._add_dcontext else None,
+        )
+        imagined = (
+            {**imagined, "context": data["context"][:6, 5:]}
+            if self.rssm._add_dcontext
+            else imagined
+        )
         openl = self.heads["decoder"](imagined)
         for key in self.heads["decoder"].cnn_shapes.keys():
             truth = data[key][:6].astype(jnp.float32)
@@ -312,6 +330,9 @@ class ImagActorCritic(nj.Module):
             k: jaxutils.Moments(**config.retnorm, name=f"retnorm_{k}") for k in critics
         }
         self.opt = jaxutils.Optimizer(name="actor_opt", **config.actor_opt)
+        self._add_dcontext = (
+            hasattr(self.config.rssm, "add_dcontext") and self.config.rssm.add_dcontext
+        )
 
     def initial(self, batch_size):
         return {}
@@ -320,18 +341,23 @@ class ImagActorCritic(nj.Module):
         # if self.config.add_dcontext:
         #     state["context"] = dcontext
 
-        return {"action": self.actor({**state, 'context':dcontext} if self.config.add_dcontext else state)}, carry
-        #return {"action": self.actor(state)}, carry
+        return {
+            "action": self.actor(
+                {**state, "context": dcontext} if self._add_dcontext else state
+            )
+        }, carry
+        # return {"action": self.actor(state)}, carry
 
     def train(self, imagine, start, context):
-        #context includes the context hehe
+        # context includes the context hehe
         def loss(start):
             policy = lambda s: self.actor(sg(s)).sample(seed=nj.rng())
-            # add 
+            # add
             traj = imagine(policy, start, self.config.imag_horizon)
             loss, metrics = self.loss(traj)
             return loss, (traj, metrics)
-        if self.config.add_dcontext:
+
+        if self._add_dcontext:
             start["dcontext"] = context["context"]
         mets, (traj, metrics) = self.opt(self.actor, loss, start, has_aux=True)
         metrics.update(mets)
