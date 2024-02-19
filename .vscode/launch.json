@@ -2,6 +2,17 @@
     // Use IntelliSense to learn about possible attributes.
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+
+    /*    # ontextual_mbrl.dreamer.train --configs carl enc_img_ctx_dec_img_ctx --task carl_classic_cartpole --env.carl.context default --seed 10 --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps 50000
+    group_name="carl_classic_cartpole_default_enc_img_ctx_dec_img_ctx"
+    seed=0
+    sys.argv[:1] = (
+        f"--configs carl enc_img_ctx_dec_img_ctx --task carl_classic_cartpole --env.carl.context default --seed 10 --logdir logs/{group_name}/{seed} --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps 50000"
+    ).split()
+
+    warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
+    warnings.filterwarnings("once", ".*If you want to use these environments.*")*/
+
     "version": "0.2.0",
     "configurations": [
         {
@@ -16,6 +27,34 @@
                 "debug",
                 "--logdir",
                 "${workspaceFolder}/logs/debug",
+            ],
+            "justMyCode": false
+        },
+        {
+            "name": "Debug Train mine",
+            "type": "python",
+            "request": "launch",
+            "module": "contextual_mbrl.dreamer.train",
+            "args": [
+                "--configs",
+                "carl",
+                "enc_img_dec_img",
+                "add_context",
+                "debug_gpu",
+                "--task",
+                "carl_classic_cartpole",
+                "--env.carl.context",
+                "default",
+                "--seed",
+                "10",
+                "--logdir",
+                "${workspaceFolder}/logs/debug",
+                "--wandb.project",
+                "contextual_mbrl",
+                "--jax.policy_devices",
+                "0",
+                "--jax.train_devices",
+                "0",
             ],
             "justMyCode": false
         },
