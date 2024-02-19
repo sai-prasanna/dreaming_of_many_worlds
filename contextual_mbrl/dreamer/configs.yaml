@@ -65,7 +65,7 @@ defaults:
 
   # World Model
   grad_heads: [decoder, reward, cont]
-  rssm: {deter: 4096, units: 1024, stoch: 32, classes: 32, act: silu, norm: layer, initial: learned, unimix: 0.01, unroll: False, action_clip: 1.0, winit: normal, fan: avg}
+  rssm: {deter: 4096, units: 1024, stoch: 32, classes: 32, act: silu, norm: layer, initial: learned, unimix: 0.01, unroll: False, action_clip: 1.0, winit: normal, fan: avg, add_dcontext: False}
   encoder: {mlp_keys: '.*', cnn_keys: '.*', act: silu, norm: layer, mlp_layers: 5, mlp_units: 1024, cnn: resnet, cnn_depth: 96, cnn_blocks: 0, resize: stride, winit: normal, fan: avg, symlog_inputs: True, minres: 4}
   decoder: {mlp_keys: '.*', cnn_keys: '.*', act: silu, norm: layer, mlp_layers: 5, mlp_units: 1024, cnn: resnet, cnn_depth: 96, cnn_blocks: 0, image_dist: mse, vector_dist: symlog_mse, inputs: [deter, stoch], resize: stride, winit: normal, fan: avg, outscale: 1.0, minres: 4, cnn_sigmoid: False}
   reward_head: {layers: 5, units: 1024, act: silu, norm: layer, dist: symlog_disc, outscale: 0.0, outnorm: False, inputs: [deter, stoch], winit: normal, fan: avg, bins: 255}
@@ -152,6 +152,29 @@ debug:
   .*\.wd$: 0.0
   wandb: {project: ''}
 
+
+debug_gpu:
+
+  jax: {jit: True, prealloc: False, debug: True, platform: gpu}
+  envs: {restart: False, amount: 3}
+  wrapper: {length: 100, checks: False}
+  run:
+    eval_every: 1000
+    log_every: 5
+    save_every: 10
+    train_ratio: 32
+    actor_batch: 2
+  batch_size: 8
+  batch_length: 12
+  replay_size: 1e5
+  encoder.cnn_depth: 8
+  decoder.cnn_depth: 8
+  rssm: {deter: 32, units: 16, stoch: 4, classes: 4}
+  .*unroll: False
+  .*\.layers: 2
+  .*\.units: 16
+  .*\.wd$: 0.0
+  wandb: {project: ''}
 # Environment
 carl:
   env.carl.context: default # default_ctx/vary_single_ctx
@@ -200,4 +223,16 @@ enc_img_dec_img_ctx:
 enc_img_ctx_dec_img:
   encoder: {mlp_keys: 'context', cnn_keys: 'image'}
   decoder: {mlp_keys: '$^', cnn_keys: 'image'}
+
+add_context: 
+  rssm.add_dcontext: True
+  .*\_head.inputs: [deter, stoch, context]
+  decoder.inputs: [deter, stoch, context]
+  actor.inputs: [deter, stoch, context]
+  critic.inputs: [deter, stoch, context]
+
+ 
+  
+
+
 ####################################################################################################

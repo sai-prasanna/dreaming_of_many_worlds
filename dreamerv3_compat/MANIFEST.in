@@ -1,0 +1,4 @@
+include requirements.txt
+include dreamerv3/configs.yaml
+include dreamerv3/Dockerfile
+include dreamerv3/embodied/scripts/*

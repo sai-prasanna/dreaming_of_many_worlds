@@ -1,0 +1,18 @@
+cloudpickle
+crafter
+gym==0.26.2
+# gymnasium>=0.26.2
+# Note that jax needs to be installed separately with the GPU installation
+# instructions in the Jax README, BEFORE installing the other reqs.
+jax
+jaxlib
+numpy
+optax
+rich
+ruamel.yaml<0.18.0 # safe_dump is deprecated (and removed) from 0.18.0 and above
+tensorflow-cpu
+tensorflow_probability
+
+# wandb
+# moviepy # Needed for gif/video saving to wandb
+# imageio # Needed for gif/video saving to wandb

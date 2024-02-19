@@ -4,14 +4,16 @@ import warnings
 
 os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
 import re
+import warnings
 
-import dreamerv3
 import numpy as np
 import ruamel.yaml as yaml
-from dreamerv3 import embodied
 
+import dreamerv3_compat.dreamerv3 as dreamerv3
 from contextual_mbrl.dreamer.envs import make_envs
+from dreamerv3_compat.dreamerv3 import embodied
 
+warnings.filterwarnings('ignore')
 
 def train(agent, env, replay, logger, args):
     # copied from embodied.run.train and modified
@@ -132,8 +134,19 @@ def train(agent, env, replay, logger, args):
 
 
 def main():
-    warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
-    warnings.filterwarnings("once", ".*If you want to use these environments.*")
+
+
+    #import sys
+
+    #add configurations
+    # ontextual_mbrl.dreamer.train --configs carl enc_img_ctx_dec_img_ctx --task carl_classic_cartpole --env.carl.context default --seed 10 --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps 50000
+    # group_name="carl_classic_cartpole_default_enc_img_ctx_dec_img_ctx"
+    # seed=0
+    # sys.argv[:1] = (
+    #     f"--configs carl enc_img_ctx_dec_img_ctx --task carl_classic_cartpole --env.carl.context default --seed 10 --logdir logs/{group_name}/{seed} --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps 50000"
+    # ).split()
+    #warnings.filterwarnings("ignore", ".*truncated to dtype int32.*")
+    #warnings.filterwarnings("once", ".*If you want to use these environments.*")
 
     parsed, other = embodied.Flags(configs=["defaults"]).parse_known()
     master_config = yaml.YAML(typ="safe").load(
