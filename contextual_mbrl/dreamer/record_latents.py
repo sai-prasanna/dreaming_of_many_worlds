@@ -23,7 +23,7 @@ logging.captureWarnings(True)
 os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
 
 
-def gen_carl_val_envs(config, **overrides):
+def gen_carl_collect_latent_envs(config, **overrides):
 
     suite, task = config.task.split("_", 1)
     assert suite == "carl", suite
@@ -92,11 +92,31 @@ def _wrap_dream_agent(agent):
             wm.encoder(data)[:, :n_start_imag],
             data["action"][:, :n_start_imag],
             data["is_first"][:, :n_start_imag],
+            dcontext=(
+                data["context"][:, :n_start_imag] if wm.rssm._add_dcontext else None
+            ),
         )
 
         # we can start imaginign from the last state of the posterior and all our actions
         start = {k: v[:, -1] for k, v in posterior_states.items()}
-        imagined_states = wm.rssm.imagine(data["action"][:, n_start_imag:], start)
+        posterior_states = (
+            {**posterior_states, "context": data["context"][:, :n_start_imag]}
+            if wm.rssm._add_dcontext
+            else posterior_states
+        )
+
+        imagined_states = wm.rssm.imagine(
+            data["action"][:, n_start_imag:],
+            start,
+            dcontext=(
+                data["context"][:, n_start_imag:] if wm.rssm._add_dcontext else None
+            ),
+        )
+        imagined_states = (
+            {**imagined_states, "context": data["context"][:, n_start_imag:]}
+            if wm.rssm._add_dcontext
+            else imagined_states
+        )
         # imagine_cont = wm.heads["cont"](imagined_states).mode()
 
         # terminate_idx = jnp.argwhere(imagine_cont == 0)
@@ -104,8 +124,10 @@ def _wrap_dream_agent(agent):
         #     terminate_idx = len(imagine_cont)
         # else:
         #     terminate_idx = terminate_idx[0] + 1
-        report["obs"] = data["obs"][0, n_start_imag - n_post : n_start_imag]
-        report["image"] = data["image"][0, n_start_imag - n_post : n_start_imag]
+        report["obs"] = data["obs"][0, n_start_imag - n_post : n_start_imag + n_imag]
+        report["image"] = data["image"][
+            0, n_start_imag - n_post : n_start_imag + n_imag
+        ]
 
         report["posterior"] = jnp.concatenate(
             [
@@ -196,7 +218,7 @@ def main():
     ctx_0 = _TASK2CONTEXTS[task][0]["context"]
     ctx_1 = _TASK2CONTEXTS[task][1]["context"]
 
-    for env, ctx_info in gen_carl_val_envs(config):
+    for env, ctx_info in gen_carl_collect_latent_envs(config):
 
         if agent is None:
             agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
@@ -220,13 +242,14 @@ def main():
                     ctx_0: ctx_info["context"][ctx_0],
                     ctx_1: ctx_info["context"][ctx_1],
                 },
+                "context_order": [ctx_0, ctx_1],
                 "episodes": logs,
             }
         )
         env.close()
     # save ctx2latent
 
-    with (logdir / "ctx2latent.pkl").open("wb") as f:
+    with (logdir / "ctx2latent_v1.pkl").open("wb") as f:
         pickle.dump(ctx2latent, f)
 
 
