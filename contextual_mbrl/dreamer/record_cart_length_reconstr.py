@@ -21,10 +21,7 @@ from contextual_mbrl.dreamer.envs import (
     CARTPOLE_TRAIN_LENGTH_RANGE,
     create_wrapped_carl_env,
 )
-from contextual_mbrl.dreamer.record_cart_length_dreams import (
-    _wrap_dream_agent,
-    generate_cartpole_length_envs,
-)
+from contextual_mbrl.dreamer.record_dreams import _wrap_dream_agent, generate_envs
 
 logging.captureWarnings(True)
 os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
@@ -65,7 +62,7 @@ def rollout_cart_length_reconst(agent, env, args, dream_agent_fn, episodes=10):
     return record_ctx
 
 
-def generate_cartpole_length_envs(config):
+def generate_envs(config):
     suite, task = config.task.split("_", 1)
     assert suite == "carl", suite
     assert task == "classic_cartpole", task
@@ -131,7 +128,7 @@ def main():
     dream_agent_fn = None
     agent = None
     ctx_gt_pred = defaultdict(list)
-    for env, ctx_info in generate_cartpole_length_envs(config):
+    for env, ctx_info in generate_envs(config):
         if agent is None:
             agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
             dream_agent_fn = nj.pure(_wrap_dream_agent(agent.agent))

@@ -26,15 +26,14 @@ logging.captureWarnings(True)
 os.environ["MUJOCO_GL"] = "egl"  # use EGL instead of GLFW to render MuJoCo
 
 
-def generate_cartpole_length_envs(config):
+def generate_envs(config, ctx_id):
     suite, task = config.task.split("_", 1)
     assert suite == "carl", suite
-    assert task == "classic_cartpole", task
-    assert _TASK2CONTEXTS[task][1]["context"] == "length"
+    context_name = _TASK2CONTEXTS[task][ctx_id]["context"]
     env_cls: CARLEnv = _TASK2ENV[task]
     contexts = []
 
-    for v1 in _TASK2CONTEXTS[task][1]["interpolate_double"]:
+    for v1 in _TASK2CONTEXTS[task][ctx_id]["interpolate_double"]:
         c = env_cls.get_default_context()
         if (
             config.env.carl.context == "default"
@@ -70,7 +69,17 @@ def _wrap_dream_agent(agent):
         report = {}
         report.update(wm.loss(data, state)[-1][-1])
         posterior_states, _ = wm.rssm.observe(
-            wm.encoder(data)[:, :5], data["action"][:, :5], data["is_first"][:, :5]
+            wm.encoder(data)[:, :5],
+            data["action"][:, :5],
+            data["is_first"][:, :5],
+            dcontext=data["context"][:6, :5] if wm.rssm._add_dcontext else None,
+        )
+        # we can start imaginign from the last state of the posterior and all our actions
+        start = {k: v[:, -1] for k, v in posterior_states.items()}
+        posterior_states = (
+            {**posterior_states, "context": data["context"][:, :5]}
+            if wm.rssm._add_dcontext
+            else posterior_states
         )
 
         # when we decode posterior frames, we are just reconstructing as we
@@ -81,9 +90,16 @@ def _wrap_dream_agent(agent):
         posterior_reconst_5 = wm.heads["decoder"](posterior_states)
         posterior_cont_5 = wm.heads["cont"](posterior_states)
 
-        # we can start imaginign from the last state of the posterior and all our actions
-        start = {k: v[:, -1] for k, v in posterior_states.items()}
-        imagined_states = wm.rssm.imagine(data["action"][:, 5:], start)
+        imagined_states = wm.rssm.imagine(
+            data["action"][:, 5:],
+            start,
+            dcontext=data["context"][:, 5:] if wm.rssm._add_dcontext else None,
+        )
+        imagined_states = (
+            {**imagined_states, "context": data["context"][:, 5:]}
+            if wm.rssm._add_dcontext
+            else imagined_states
+        )
         imagine_reconst = wm.heads["decoder"](imagined_states)
         imagine_cont = wm.heads["cont"](imagined_states)
 
@@ -92,7 +108,7 @@ def _wrap_dream_agent(agent):
         )
         # report["terminate_post"] = 1 - posterior_cont.mode()[0]
 
-        if "context" in data:
+        if "context" in data and "context" in posterior_reconst_5:
             model_ctx = jnp.concatenate(
                 [
                     posterior_reconst_5["context"].mode(),
@@ -131,7 +147,7 @@ def _wrap_dream_agent(agent):
 
 
 def record_dream(
-    agent, env, args, ctx_info, logdir, dream_agent_fn, override_length_ctx
+    agent, env, args, ctx_info, logdir, dream_agent_fn, ctx_id, counterfactual_ctx, task
 ):
     report = None
 
@@ -139,11 +155,10 @@ def record_dream(
         nonlocal agent, report
         mode = ctx_info["mode"]
         batch = {k: np.stack([v], 0) for k, v in ep.items()}
-        if override_length_ctx >= 0:
-            batch["context"][..., 1:] = (
-                override_length_ctx - CARTPOLE_TRAIN_LENGTH_RANGE[0]
-            ) / (
-                CARTPOLE_TRAIN_LENGTH_RANGE[1] - CARTPOLE_TRAIN_LENGTH_RANGE[0]
+        if counterfactual_ctx is not None:
+            train_range = _TASK2CONTEXTS[task][ctx_id]["train_range"]
+            batch["context"][..., ctx_id] = (counterfactual_ctx - train_range[0]) / (
+                train_range[1] - train_range[0]
             ) * 2 - 1
         jax_batch = agent._convert_inps(batch, agent.train_devices)
         rng = agent._next_rngs(agent.train_devices)
@@ -154,12 +169,10 @@ def record_dream(
         video = np.clip(255 * video, 0, 255).astype(np.uint8)
         if "ctx" in report:
             # Remove normalization of length
+            train_range = _TASK2CONTEXTS[task][ctx_id]["train_range"]
             ctx = (report["ctx"][0] + 1) / 2 * (
-                CARTPOLE_TRAIN_LENGTH_RANGE[1] - CARTPOLE_TRAIN_LENGTH_RANGE[0]
-            ) + CARTPOLE_TRAIN_LENGTH_RANGE[0]
-            # post_ctx = (report["ctx_post"][0] + 1) / 2 * (
-            #     CARTPOLE_TRAIN_LENGTH_RANGE[1] - CARTPOLE_TRAIN_LENGTH_RANGE[0]
-            # ) + CARTPOLE_TRAIN_LENGTH_RANGE[0]
+                train_range[1] - train_range[0]
+            ) + train_range[0]
             for i in range(len(video)):
                 video[i] = cv2.putText(
                     video[i],
@@ -223,13 +236,14 @@ def record_dream(
             #     video[i, 64 * 3 :, -5:] = [255, 0, 0]
 
         encoded_img_str = _encode_gif(video, 30)
-        l = ctx_info["context"]["length"]
+        context_name = _TASK2CONTEXTS[task][ctx_id]["context"]
+        l = ctx_info["context"][context_name]
 
         fname = f"{mode}_length_{l:0.2f}"
         path = logdir / (
-            f"cart_dreams_{override_length_ctx}"
-            if override_length_ctx >= 0
-            else "cart_dreams"
+            f"dreams_{context_name}_{counterfactual_ctx}"
+            if counterfactual_ctx is not None
+            else "dreams_{context_name}"
         )
         path.mkdirs()
         with open(path / f"{fname}.gif", "wb") as f:
@@ -265,9 +279,14 @@ def main():
     warnings.filterwarnings("module", "carl.*")
 
     # create argparse with logdir
-    parsed, other = embodied.Flags(logdir="", ctx_length=-1.0).parse_known()
+    parsed, other = embodied.Flags(
+        logdir="", ctx_id=0, counterfactual_ctx=""
+    ).parse_known()
     logdir = embodied.Path(parsed.logdir)
-    ctx_length = parsed.ctx_length
+    counterfactual_ctx = (
+        float(parsed.counterfactual_ctx) if parsed.counterfactual_ctx else None
+    )
+    ctx_id = parsed.ctx_id
     # load the config from the logdir
     config = yaml.YAML(typ="safe").load((logdir / "config.yaml").read())
     config = embodied.Config(config)
@@ -284,10 +303,10 @@ def main():
     ckpt.step = embodied.Counter()
     ckpt.load(checkpoint, keys=["step"])
     step = ckpt._values["step"]
-
+    suite, task = config.task.split("_", 1)
     dream_agent_fn = None
     agent = None
-    for env, ctx_info in generate_cartpole_length_envs(config):
+    for env, ctx_info in generate_envs(config, ctx_id):
         if agent is None:
             agent = dreamerv3.Agent(env.obs_space, env.act_space, step, config)
             dream_agent_fn = nj.pure(_wrap_dream_agent(agent.agent))
@@ -297,7 +316,18 @@ def main():
             logdir=config.logdir,
             batch_steps=config.batch_size * config.batch_length,
         )
-        record_dream(agent, env, args, ctx_info, logdir, dream_agent_fn, ctx_length)
+
+        record_dream(
+            agent,
+            env,
+            args,
+            ctx_info,
+            logdir,
+            dream_agent_fn,
+            ctx_id,
+            counterfactual_ctx,
+            task,
+        )
         env.close()
 
 
@@ -305,7 +335,7 @@ if __name__ == "__main__":
     # import sys
 
     # sys.argv[1:] = (
-    #     "--logdir logs/carl_classic_cartpole_single_1_enc_img_ctx_dec_img_ctx_normalized_mse/0/ --jax.train_devices 0 --jax.policy_devices 0".split(
+    #     "--logdir logs/carl_classic_cartpole_single_1_enc_img_dec_img_pgm_ctx_normalized/13/ --jax.train_devices 0 --jax.policy_devices 0".split(
     #         " "
     #     )
     # )
