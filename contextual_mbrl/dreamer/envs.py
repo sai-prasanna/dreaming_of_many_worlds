@@ -22,6 +22,9 @@ from gymnasium.wrappers.time_limit import TimeLimit
 CARTPOLE_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
 CARTPOLE_TRAIN_LENGTH_RANGE = [0.35, 0.75]
 
+PENDULUM_LENGTH_RANGE = [0.5, 1.5]
+PENDULUM_TRAIN_MASS_RANGE = [0.5, 1.5]
+
 WALKER_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
 WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE = [0.5, 1.5]
 
@@ -66,6 +69,44 @@ _TASK2CONTEXTS = {
             "extrapolate_double": [0.1, 0.2, 0.3, 0.8, 0.9, 1.0],
         },
     ],
+    "classic_pendulum": [
+        {
+            "context": "l",
+            "train_range": PENDULUM_LENGTH_RANGE,
+            "interpolate_single": [0.5, 0.75, 1.0, 1.25, 1.5],
+            "interpolate_double": [0.5, 1.0, 1.5],
+            "extrapolate_single": [
+                0.1,
+                0.2,
+                0.3,
+                0.4,
+                1.6,
+                1.7,
+                1.8,
+                1.9,
+                2.0,
+            ],
+            "extrapolate_double": [0.1, 0.3, 1.6, 1.8, 2.0],
+        },
+        {
+            "context": "m",
+            "train_range": PENDULUM_TRAIN_MASS_RANGE,
+            "interpolate_single": [0.5, 0.75, 1.0, 1.25, 1.5],
+            "interpolate_double": [0.5, 1.0, 1.5],
+            "extrapolate_single": [
+                0.1,
+                0.2,
+                0.3,
+                0.4,
+                1.6,
+                1.7,
+                1.8,
+                1.9,
+                2.0,
+            ],
+            "extrapolate_double": [0.1, 0.3, 1.6, 1.8, 2.0],
+        },
+    ],
     "dmc_walker": [
         {
             "context": "gravity",
@@ -100,6 +141,7 @@ _TASK2CONTEXTS = {
 _TASK2ENV = {
     "classic_cartpole": CARLCartPole,
     "dmc_walker": CARLDmcWalkerEnv,
+    "classic_pendulum": CARLPendulum,
 }
 
 
@@ -134,6 +176,10 @@ class NormalizeContextWrapper(Wrapper):
         CARLDmcWalkerEnv: {
             "gravity": WALKER_TRAIN_GRAVITY_RANGE,
             "actuator_strength": WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE,
+        },
+        CARLPendulum: {
+            "l": PENDULUM_LENGTH_RANGE,
+            "m": PENDULUM_TRAIN_MASS_RANGE,
         },
     }
 

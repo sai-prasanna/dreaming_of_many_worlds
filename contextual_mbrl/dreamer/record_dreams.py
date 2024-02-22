@@ -243,7 +243,7 @@ def record_dream(
         path = logdir / (
             f"dreams_{context_name}_{counterfactual_ctx}"
             if counterfactual_ctx is not None
-            else "dreams_{context_name}"
+            else f"dreams_{context_name}"
         )
         path.mkdirs()
         with open(path / f"{fname}.gif", "wb") as f:

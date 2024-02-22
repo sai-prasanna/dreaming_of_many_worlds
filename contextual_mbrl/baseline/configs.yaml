@@ -1,0 +1,12 @@
+defaults:
+  seed: 0
+  task: 'carl_classic_cartpole'
+  env:
+    carl: {context: default}
+    num_stack: 1
+  # Extras
+  wandb: {project: contextual_mbrl, group: ""}
+  logdir: /dev/null
+  use_context: False
+  # Model
+  algorithm: ppo # ppo/dqn/recurrent_ppo
