@@ -6,12 +6,14 @@ from multiprocessing import current_process
 from typing import Tuple
 
 import dreamerv3
+import gymnasium as gym
 import numpy as np
 from carl.context.context_space import UniformFloatContextFeature
 from carl.context.sampler import ContextSampler
 from carl.context.selection import AbstractSelector
 from carl.envs.carl_env import CARLEnv
 from carl.envs.dmc import CARLDmcWalkerEnv
+from carl.envs.gymnasium.box2d import CARLBipedalWalker
 from carl.envs.gymnasium.classic_control import CARLCartPole, CARLPendulum
 from carl.utils.types import Context, Contexts
 from dreamerv3 import embodied
@@ -27,6 +29,9 @@ PENDULUM_TRAIN_MASS_RANGE = [0.5, 1.5]
 
 WALKER_TRAIN_GRAVITY_RANGE = [4.9, 14.70]
 WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE = [0.5, 1.5]
+
+BIPEDAL_WALKER_TRAIN_GRAVITY_RANGE = [-13.0, -7.0]
+BIPEDAL_WALKER_TRAIN_SPEED_KNEE_RANGE = [4.0, 9.0]
 
 _TASK2CONTEXTS = {
     "classic_cartpole": [
@@ -107,6 +112,35 @@ _TASK2CONTEXTS = {
             "extrapolate_double": [0.1, 0.3, 1.6, 1.8, 2.0],
         },
     ],
+    "box2d_bipedal_walker": [
+        {
+            "context": "GRAVITY_Y",
+            "train_range": BIPEDAL_WALKER_TRAIN_GRAVITY_RANGE,
+            "interpolate_single": [-7.0, -8.0, -9, -10.0, -11.0, -12.0, -13.0],
+            "interpolate_double": [-7.0, -10.0, -13.0],
+            "extrapolate_single": [
+                -1.0,
+                -2.0,
+                -3.0,
+                -4.0,
+                -5.0,
+                -15.0,
+                -16.0,
+                -17.0,
+                -18.0,
+                -19.0,
+            ],
+            "extrapolate_double": [-1.0, -3.0, -5.0, -15.0, -17.0, -19.0],
+        },
+        {
+            "context": "SPEED_KNEE",
+            "train_range": BIPEDAL_WALKER_TRAIN_SPEED_KNEE_RANGE,
+            "interpolate_single": [4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+            "interpolate_double": [4.0, 6.0, 9.0],
+            "extrapolate_single": [1.0, 2.0, 3.0, 10.0, 11.0, 12.0, 13.0, 14.0, 15.0],
+            "extrapolate_double": [1.0, 3.0, 10.0, 12.0, 15.0],
+        },
+    ],
     "dmc_walker": [
         {
             "context": "gravity",
@@ -142,6 +176,7 @@ _TASK2ENV = {
     "classic_cartpole": CARLCartPole,
     "dmc_walker": CARLDmcWalkerEnv,
     "classic_pendulum": CARLPendulum,
+    "box2d_bipedal_walker": CARLBipedalWalker,
 }
 
 
@@ -180,6 +215,10 @@ class NormalizeContextWrapper(Wrapper):
         CARLPendulum: {
             "l": PENDULUM_LENGTH_RANGE,
             "m": PENDULUM_TRAIN_MASS_RANGE,
+        },
+        CARLBipedalWalker: {
+            "GRAVITY_Y": BIPEDAL_WALKER_TRAIN_GRAVITY_RANGE,
+            "SPEED_KNEE": BIPEDAL_WALKER_TRAIN_SPEED_KNEE_RANGE,
         },
     }
 
@@ -411,6 +450,7 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
     )  # Replace this with your Gym env.
     # reset once for paranoia
     env.reset(seed=seed)
+
     if "dmc" in task:
         env.env.render_mode = "rgb_array"
     if task == "classic_cartpole":
