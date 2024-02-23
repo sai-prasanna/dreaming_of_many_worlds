@@ -28,6 +28,9 @@ class RSSM(nj.Module):
         unimix=0.01,
         action_clip=1.0,
         add_dcontext=False,
+        add_context_prior=False,
+        add_context_posterior=False,
+        context_size=0,
         **kw,
     ):
         self._deter = deter
@@ -40,6 +43,9 @@ class RSSM(nj.Module):
         self._kw = kw
         # check flag add_dcontext in self._kw
         self._add_dcontext = add_dcontext
+        self._add_context_prior = add_context_prior
+        self._add_context_posterior = add_context_posterior
+        self._context_size = context_size
 
     def initial(self, bs):
         if self._classes:
@@ -60,7 +66,10 @@ class RSSM(nj.Module):
         elif self._initial == "learned":
             deter = self.get("initial", jnp.zeros, state["deter"][0].shape, f32)
             state["deter"] = jnp.repeat(jnp.tanh(deter)[None], bs, 0)
-            state["stoch"] = self.get_stoch(cast(state["deter"]))
+            x = state["deter"]
+            if self._add_context_prior:
+                x = jnp.concatenate([x, jnp.zeros((bs, self._context_size), f32)], -1)
+            state["stoch"] = self.get_stoch(cast(x))
             return cast(state)
         else:
             raise NotImplementedError(self._initial)
@@ -90,8 +99,8 @@ class RSSM(nj.Module):
         step = lambda prev, inputs: self.img_step(prev, *inputs)
         inputs = (
             swap(action),
-            #swap(embed),
-            #swap(is_first),
+            # swap(embed),
+            # swap(is_first),
             swap(dcontext) if self._add_dcontext else None,
         )
         start = state
@@ -125,6 +134,8 @@ class RSSM(nj.Module):
         )
         prior = self.img_step(prev_state, prev_action, dcontext=dcontext)
         x = jnp.concatenate([prior["deter"], embed], -1)
+        if dcontext is not None and self._add_context_posterior:
+            x = jnp.concatenate([x, dcontext], -1)
         x = self.get("obs_out", Linear, **self._kw)(x)
         stats = self._stats("obs_stats", x)
         dist = self.get_dist(stats)
@@ -149,6 +160,8 @@ class RSSM(nj.Module):
         x = x if dcontext is None else jnp.concatenate([x, dcontext], -1)
         x = self.get("img_in", Linear, **self._kw)(x)
         x, deter = self._gru(x, prev_state["deter"])
+        if dcontext is not None and self._add_context_prior:
+            x = jnp.concatenate([x, dcontext], -1)
         x = self.get("img_out", Linear, **self._kw)(x)
         stats = self._stats("img_stats", x)
         dist = self.get_dist(stats)

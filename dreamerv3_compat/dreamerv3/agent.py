@@ -149,12 +149,22 @@ class WorldModel(nj.Module):
         shapes = {k: tuple(v.shape) for k, v in obs_space.items()}
         shapes = {k: v for k, v in shapes.items() if not k.startswith("log_")}
         self.encoder = nets.MultiEncoder(shapes, **config.encoder, name="enc")
-        self.rssm = nets.RSSM(**config.rssm, name="rssm")
+        context_size = 0
+        if config.rssm.add_dcontext:
+            context_size = obs_space["context"].shape[0]
+        self.rssm = nets.RSSM(**config.rssm, context_size=context_size, name="rssm")
         self.heads = {
             "decoder": nets.MultiDecoder(shapes, **config.decoder, name="dec"),
             "reward": nets.MLP((), **config.reward_head, name="rew"),
             "cont": nets.MLP((), **config.cont_head, name="cont"),
         }
+        if hasattr(config, "use_context_head") and config.use_context_head:
+            assert config.rssm.add_dcontext
+            self.heads["context"] = nets.MLP(
+                shapes["context"], **config.context_head, name="context"
+            )
+            assert "context" not in self.config.grad_heads
+
         self.opt = jaxutils.Optimizer(name="model_opt", **config.model_opt)
         scales = self.config.loss_scales.copy()
         image, vector = scales.pop("image"), scales.pop("vector")
@@ -172,7 +182,6 @@ class WorldModel(nj.Module):
         mets, (state, outs, metrics) = self.opt(
             modules, self.loss, data, state, has_aux=True
         )
-        metrics.update(mets)
         return state, outs, metrics
 
     def loss(self, data, state):
@@ -206,6 +215,15 @@ class WorldModel(nj.Module):
             loss = -dist.log_prob(data[key].astype(jnp.float32))
             assert loss.shape == embed.shape[:2], (key, loss.shape)
             losses[key] = loss
+        if self.config.use_context_head:
+            pure_context_head_fn = nj.pure(
+                lambda ctx: self.heads["context"](ctx), nested=True
+            )
+            context_head_state = self.heads["context"].getm()
+            adv_pred, _ = pure_context_head_fn(sg(context_head_state), nj.rng(), post)
+            losses["context_adv"] = adv_pred.log_prob(
+                data["context"].astype(jnp.float32)
+            )
         scaled = {k: v * self.scales[k] for k, v in losses.items()}
         model_loss = sum(scaled.values())
         out = {"embed": embed, "post": post, "prior": prior}
