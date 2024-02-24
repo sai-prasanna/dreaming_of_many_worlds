@@ -24,7 +24,7 @@ from . import ninjax as nj
 
 def nonzero_in(x, config):
     if x in config:
-        if x is not None:
+        if x:
             return True
     return False
 
