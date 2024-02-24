@@ -221,8 +221,8 @@ class WorldModel(nj.Module):
             )
             context_head_state = self.heads["context"].getm()
             adv_pred, _ = pure_context_head_fn(sg(context_head_state), nj.rng(), post)
-            losses["context_adv"] = adv_pred.log_prob(
-                data["context"].astype(jnp.float32)
+            losses["context_adv"] = -adv_pred.log_prob(
+                jnp.zeros_like(data["context"], jnp.float32)
             )
         scaled = {k: v * self.scales[k] for k, v in losses.items()}
         model_loss = sum(scaled.values())

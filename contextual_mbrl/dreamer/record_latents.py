@@ -82,11 +82,14 @@ def _wrap_dream_agent(agent):
         # state = wm.initial(len(data["is_first"]))
         report = {}
         # report.update(wm.loss(data, state)[-1][-1])
-
-        if data["is_first"].shape[1] < (n_start_imag + n_imag):
-            n_start_imag = 5
-            n_post = 5
-            n_imag = 5
+        ep_len = data["is_first"].shape[1]
+        if ep_len < (n_start_imag + n_imag):
+            if ep_len >= 10:
+                n_start_imag = 5
+                n_post = 5
+                n_imag = 5
+            else:
+                return report
 
         posterior_states, _ = wm.rssm.observe(
             wm.encoder(data)[:, :n_start_imag],
@@ -169,8 +172,9 @@ def collect_latents(agent, env, args, dream_agent_fn, episodes):
         jax_batch = agent._convert_inps(batch, agent.train_devices)
         rng = agent._next_rngs(agent.train_devices)
         r, _ = dream_agent_fn(agent.varibs, rng, jax_batch)
-        r = agent._convert_mets(r, agent.train_devices)
-        report.append(r)
+        if r:
+            r = agent._convert_mets(r, agent.train_devices)
+            report.append(r)
 
     driver = embodied.Driver(env)
     driver.on_episode(lambda ep, worker: per_episode(ep))
