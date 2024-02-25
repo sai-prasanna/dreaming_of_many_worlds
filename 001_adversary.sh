@@ -1,15 +1,15 @@
 #!/bin/bash
 
-#SBATCH --array=0-4
+#SBATCH --array=0-59
 #SBATCH --partition alldlc_gpu-rtx2080
-#SBATCH --job-name CMbRL_array
+#SBATCH --job-name CMbRL_vayuu
 #SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
 #SBATCH --error logs/slurm/%x-%A-%a-HelloCluster.err
 #SBATCH --mem 32GB
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --ntasks-per-core=1
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 
 echo "Workingdir: $PWD";
 echo "Started at $(date)";
@@ -19,12 +19,10 @@ conda activate c_mbrl
 
 start=`date +%s`
 
-tasks=("carl_classic_cartpole")
-seeds=("0" "42" "1337" "13" "71")
-#schemes=("enc_obs_dec_obs" "enc_obs_ctx_dec_obs_ctx" "enc_obs_dec_obs_ctx")
-# schemes=("enc_obs_dec_obs" "enc_obs_ctx_dec_obs_ctx" "enc_obs_dec_obs_ctx" "enc_img_dec_img" "enc_img_ctx_dec_img_ctx" "enc_img_dec_img_ctx")
-schemes=("enc_img_ctx_dec_img_ctx")
-contexts=("single_1")
+tasks=("carl_dmc_walker" "carl_classic_cartpole")
+seeds=("0" "42" "1337" "13" "71" "1994" "1997" "908" "2102" "3")
+schemes=("enc_img_dec_img_pgm_ctx_adv" "enc_obs_dec_obs_pgm_ctx_adv")
+contexts=("single_0" "single_1" "double_box")
 
 n_tasks=${#tasks[@]}
 n_seeds=${#seeds[@]}
@@ -41,15 +39,22 @@ seed=${seeds[$seed_index]}
 scheme=${schemes[$scheme_index]}
 context=${contexts[$context_index]}
 
-group_name="${task}_${context}_${scheme}_normalized_mse_nolnorm"
-
-if [ -d "logs/$group_name/$seed" ]; then
-    echo "Log directory exists, skipping job"
-    exit 0
+if [ "$scheme" == "enc_obs_dec_obs_default" ]; then
+    scheme="enc_obs_dec_obs"
+    context="default"
 fi
-python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps 50000 --encoder.symlog_inputs False --decoder.vector_dist mse --encoder.norm none --decoder.norm none
 
+group_name="${task}_${context}_${scheme}_normalized"
+
+if [ "$task" == "carl_dmc_walker" ]; then
+    steps=100000
+else
+    steps=50000
+fi
+
+python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 0 --run.steps $steps --wandb.project ""
 python -m contextual_mbrl.dreamer.eval --logdir logs/$group_name/$seed
+python -m contextual_mbrl.dreamer.record_latents --logdir logs/$group_name/$seed
 
 end=`date +%s`
 runtime=$((end-start))
