@@ -2,7 +2,7 @@
 
 #SBATCH --array=0-4
 #SBATCH --partition alldlc_gpu-rtx2080
-#SBATCH --job-name CMbRL_agni
+#SBATCH --job-name CMbRL_indra
 #SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
 #SBATCH --error logs/slurm/%x-%A-%a-HelloCluster.err
 #SBATCH --mem 32GB
