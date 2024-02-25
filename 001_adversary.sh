@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --array=0-59
+#SBATCH --array=0-119
 #SBATCH --partition alldlc_gpu-rtx2080
 #SBATCH --job-name CMbRL_vayuu
 #SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
