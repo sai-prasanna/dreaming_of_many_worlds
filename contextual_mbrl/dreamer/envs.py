@@ -13,7 +13,7 @@ from carl.context.sampler import ContextSampler
 from carl.context.selection import AbstractSelector
 from carl.envs.carl_env import CARLEnv
 from carl.envs.dmc import CARLDmcWalkerEnv
-from carl.envs.gymnasium.box2d import CARLBipedalWalker
+from carl.envs.gymnasium.box2d import CARLBipedalWalker, CARLLunarLander
 from carl.envs.gymnasium.classic_control import CARLCartPole, CARLPendulum
 from carl.utils.types import Context, Contexts
 from dreamerv3 import embodied
@@ -32,6 +32,9 @@ WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE = [0.5, 1.5]
 
 BIPEDAL_WALKER_TRAIN_GRAVITY_RANGE = [-13.0, -7.0]
 BIPEDAL_WALKER_TRAIN_SPEED_KNEE_RANGE = [4.0, 9.0]
+
+LUNAR_LANDER_TRAIN_GRAVITY_RANGE = [-13.0, -7.0]
+LUNAR_LANDER_MAIN_ENGINE_POWER_RANGE = [8.0, 17.0]
 
 _TASK2CONTEXTS = {
     "classic_cartpole": [
@@ -141,6 +144,46 @@ _TASK2CONTEXTS = {
             "extrapolate_double": [1.0, 3.0, 10.0, 12.0, 15.0],
         },
     ],
+    "box2d_lunar_lander": [
+        {
+            "context": "GRAVITY_Y",
+            "train_range": LUNAR_LANDER_TRAIN_GRAVITY_RANGE,
+            "interpolate_single": [-7.0, -8.0, -9, -10.0, -11.0, -12.0, -13.0],
+            "interpolate_double": [-7.0, -10.0, -13.0],
+            "extrapolate_single": [
+                -1.0,
+                -2.0,
+                -3.0,
+                -4.0,
+                -5.0,
+                -15.0,
+                -16.0,
+                -17.0,
+                -18.0,
+                -19.0,
+            ],
+            "extrapolate_double": [-1.0, -3.0, -5.0, -15.0, -17.0, -19.0],
+        },
+        {
+            "context": "MAIN_ENGINE_POWER",
+            "train_range": LUNAR_LANDER_MAIN_ENGINE_POWER_RANGE,
+            "interpolate_single": [8.0, 10.0, 13.0, 15.0, 17.0],
+            "interpolate_double": [8.0, 13.0, 17.0],
+            "extrapolate_single": [
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                18.0,
+                19.0,
+                20.0,
+                21.0,
+                22.0,
+            ],
+            "extrapolate_double": [3.0, 5.0, 7.0, 18.0, 20.0, 22.0],
+        },
+    ],
     "dmc_walker": [
         {
             "context": "gravity",
@@ -177,6 +220,7 @@ _TASK2ENV = {
     "dmc_walker": CARLDmcWalkerEnv,
     "classic_pendulum": CARLPendulum,
     "box2d_bipedal_walker": CARLBipedalWalker,
+    "box2d_lunar_lander": CARLLunarLander,
 }
 
 
@@ -220,6 +264,10 @@ class NormalizeContextWrapper(Wrapper):
             "GRAVITY_Y": BIPEDAL_WALKER_TRAIN_GRAVITY_RANGE,
             "SPEED_KNEE": BIPEDAL_WALKER_TRAIN_SPEED_KNEE_RANGE,
         },
+        CARLLunarLander: {
+            "GRAVITY_Y": LUNAR_LANDER_TRAIN_GRAVITY_RANGE,
+            "MAIN_ENGINE_POWER": LUNAR_LANDER_MAIN_ENGINE_POWER_RANGE,
+        },
     }
 
     def __init__(self, env):
@@ -251,6 +299,11 @@ class NormalizeContextWrapper(Wrapper):
 
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)
+        if isinstance(self.env, CARLLunarLander):
+            # Randomize the wind and torque start index in each episode
+            # to make the environment more stochastic
+            self.env.env.wind_idx = np.random.randint(-9999, 9999)
+            self.env.env.torque_idx = np.random.randint(-9999, 9999)
         obs["context"] = self._normalize_context(obs["context"])
         return obs, info
 
@@ -442,6 +495,16 @@ def create_wrapped_carl_env(env_cls: CARLEnv, contexts, config):
     # Only the context features that might change in training or evaluation are # added to the observation space
     context_features = [o["context"] for o in _TASK2CONTEXTS[task]]
     seed = int(current_process().name.split("-")[-1]) + int(config.seed)
+    if task == "box2d_lunar_lander":
+        env_cls = bind(
+            env_cls,
+            env=gym.make(
+                "LunarLander-v2",
+                enable_wind=True,
+                continuous=True,
+                render_mode="rgb_array",
+            ),
+        )
     env = env_cls(
         obs_context_as_dict=False,
         obs_context_features=context_features,
