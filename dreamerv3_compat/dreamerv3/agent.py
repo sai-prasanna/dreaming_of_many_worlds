@@ -215,7 +215,7 @@ class WorldModel(nj.Module):
             loss = -dist.log_prob(data[key].astype(jnp.float32))
             assert loss.shape == embed.shape[:2], (key, loss.shape)
             losses[key] = loss
-        if self.config.use_context_head:
+        if hasattr(self.config, "use_context_head") and self.config.use_context_head:
             pure_context_head_fn = nj.pure(
                 lambda ctx: self.heads["context"](ctx), nested=True
             )
