@@ -167,63 +167,50 @@ def record_dream(
         video = report["image"]
 
         video = np.clip(255 * video, 0, 255).astype(np.uint8)
-        if "ctx" in report:
-            # Remove normalization of length
-            train_range = _TASK2CONTEXTS[task][ctx_id]["train_range"]
-            ctx = (report["ctx"][0] + 1) / 2 * (
-                train_range[1] - train_range[0]
-            ) + train_range[0]
-            for i in range(len(video)):
-                video[i] = cv2.putText(
-                    video[i],
-                    f"{ctx[i][0]:.2f}",
-                    (10, 15),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 0, 0),
-                    1,
-                    cv2.LINE_AA,
-                )
-                video[i] = cv2.putText(
-                    video[i],
-                    f"{ctx[i][1]:.2f}",
-                    (10, 64 + 15),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 0, 0),
-                    1,
-                    cv2.LINE_AA,
-                )
-                # video[i] = cv2.putText(
-                #     video[i],
-                #     f"{ctx[i][0] - ctx[i][1]:.2f}",
-                #     (10, 64 * 2 + 15),
-                #     cv2.FONT_HERSHEY_SIMPLEX,
-                #     0.5,
-                #     (0, 0, 0),
-                #     1,
-                #     cv2.LINE_AA,
-                # )
-                # video[i] = cv2.putText(
-                #     video[i],
-                #     f"{post_ctx[i][0]:.2f}",
-                #     (10, 64 * 3 + 15),
-                #     cv2.FONT_HERSHEY_SIMPLEX,
-                #     0.5,
-                #     (0, 0, 0),
-                #     1,
-                #     cv2.LINE_AA,
-                # )
-                # video[i] = cv2.putText(
-                #     video[i],
-                #     f"{ctx[i][0] - post_ctx[i][0]:.2f}",
-                #     (10, 64 * 4 + 15),
-                #     cv2.FONT_HERSHEY_SIMPLEX,
-                #     0.5,
-                #     (0, 0, 0),
-                #     1,
-                #     cv2.LINE_AA,
-                # )
+
+        context_name = _TASK2CONTEXTS[task][ctx_id]["context"]
+        l = ctx_info["context"][context_name]
+
+        fname = f"{mode}_{l:0.2f}"
+        path = logdir / (
+            f"dreams_{context_name}_{counterfactual_ctx}"
+            if counterfactual_ctx is not None
+            else f"dreams_{context_name}"
+        )
+        path.mkdirs()
+
+        for i in range(5):
+            posterior = video[i, :128]
+            cv2.imwrite(str(path / f"{fname}_posterior_{i}.png"), posterior[:, :, ::-1])
+
+        # if "ctx" in report:
+        #     # Remove normalization of length
+        #     train_range = _TASK2CONTEXTS[task][ctx_id]["train_range"]
+        #     ctx = (report["ctx"][0] + 1) / 2 * (
+        #         train_range[1] - train_range[0]
+        #     ) + train_range[0]
+        #     for i in range(len(video)):
+        #         video[i] = cv2.putText(
+        #             video[i],
+        #             f"{ctx[i][0]:.2f}",
+        #             (10, 15),
+        #             cv2.FONT_HERSHEY_SIMPLEX,
+        #             0.5,
+        #             (0, 0, 0),
+        #             1,
+        #             cv2.LINE_AA,
+        #         )
+        #         video[i] = cv2.putText(
+        #             video[i],
+        #             f"{ctx[i][1]:.2f}",
+        #             (10, 64 + 15),
+        #             cv2.FONT_HERSHEY_SIMPLEX,
+        #             0.5,
+        #             (0, 0, 0),
+        #             1,
+        #             cv2.LINE_AA,
+        #         )
+
         for i in range(len(video)):
             if report["terminate"][i] > 0:
                 # draw a line at the right end of the image
@@ -232,20 +219,8 @@ def record_dream(
                     64:128,
                     -5:,
                 ] = [255, 0, 0]
-            # if report["terminate_post"][i] > 0:
-            #     video[i, 64 * 3 :, -5:] = [255, 0, 0]
 
         encoded_img_str = _encode_gif(video, 30)
-        context_name = _TASK2CONTEXTS[task][ctx_id]["context"]
-        l = ctx_info["context"][context_name]
-
-        fname = f"{mode}_length_{l:0.2f}"
-        path = logdir / (
-            f"dreams_{context_name}_{counterfactual_ctx}"
-            if counterfactual_ctx is not None
-            else f"dreams_{context_name}"
-        )
-        path.mkdirs()
         with open(path / f"{fname}.gif", "wb") as f:
             f.write(encoded_img_str)
         # find the first terminate index
@@ -332,11 +307,11 @@ def main():
 
 
 if __name__ == "__main__":
-    # import sys
+    import sys
 
-    # sys.argv[1:] = (
-    #     "--logdir logs/carl_classic_cartpole_single_1_enc_img_dec_img_pgm_ctx_normalized/13/ --jax.train_devices 0 --jax.policy_devices 0".split(
-    #         " "
-    #     )
-    # )
+    sys.argv[1:] = (
+        "--logdir logs/carl_classic_cartpole_single_1_enc_img_dec_img_pgm_ctx_normalized/13/ --jax.train_devices 0 --jax.policy_devices 0 --ctx_id 1".split(
+            " "
+        )
+    )
     main()
