@@ -180,7 +180,7 @@ def record_dream(
         path.mkdirs()
 
         for i in range(5):
-            posterior = video[i, :128]
+            posterior = video[i]
             cv2.imwrite(str(path / f"{fname}_posterior_{i}.png"), posterior[:, :, ::-1])
 
         # if "ctx" in report:
@@ -307,11 +307,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import sys
-
-    sys.argv[1:] = (
-        "--logdir logs/carl_classic_cartpole_single_1_enc_img_dec_img_pgm_ctx_normalized/13/ --jax.train_devices 0 --jax.policy_devices 0 --ctx_id 1".split(
-            " "
-        )
-    )
     main()

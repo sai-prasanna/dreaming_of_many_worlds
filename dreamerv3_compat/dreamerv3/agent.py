@@ -150,7 +150,7 @@ class WorldModel(nj.Module):
         shapes = {k: v for k, v in shapes.items() if not k.startswith("log_")}
         self.encoder = nets.MultiEncoder(shapes, **config.encoder, name="enc")
         context_size = 0
-        if config.rssm.add_dcontext:
+        if hasattr(config.rssm, "add_dcontext") and config.rssm.add_dcontext:
             context_size = obs_space["context"].shape[0]
         self.rssm = nets.RSSM(**config.rssm, context_size=context_size, name="rssm")
         self.heads = {
