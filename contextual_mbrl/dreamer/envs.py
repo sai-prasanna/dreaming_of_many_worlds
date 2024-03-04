@@ -33,8 +33,12 @@ WALKER_TRAIN_ACTUATOR_STRENGTH_RANGE = [0.5, 1.5]
 BIPEDAL_WALKER_TRAIN_GRAVITY_RANGE = [-13.0, -7.0]
 BIPEDAL_WALKER_TRAIN_SPEED_KNEE_RANGE = [4.0, 9.0]
 
+BIPEDAL_WALKER_TRAIN_LEG_H_RANGE = [1.5, 2.5]
+BIPEDAL_WALKER_TRAIN_LEG_W_RANGE = [0.45, 0.55]
+
 LUNAR_LANDER_TRAIN_GRAVITY_RANGE = [-13.0, -7.0]
 LUNAR_LANDER_MAIN_ENGINE_POWER_RANGE = [8.0, 17.0]
+
 
 _TASK2CONTEXTS = {
     "classic_cartpole": [
@@ -144,6 +148,24 @@ _TASK2CONTEXTS = {
             "extrapolate_double": [1.0, 3.0, 10.0, 12.0, 15.0],
         },
     ],
+    "box2d_bipedal_walker_new": [
+        {
+            "context": "LEG_H",
+            "train_range": BIPEDAL_WALKER_TRAIN_LEG_H_RANGE,
+            "interpolate_single": [1.5, 1.7, 1.9, 2.0, 2.1, 2.3, 2.5],
+            "interpolate_double": [1.5, 2.0, 2.5],
+            "extrapolate_single": [0.75, 0.85, 0.95, 2.6, 2.7, 2.8, 2.9, 3.0],
+            "extrapolate_double": [0.75, 0.95, 2.6, 2.8, 3.0],
+        },
+        {
+            "context": "LEG_W",
+            "train_range": BIPEDAL_WALKER_TRAIN_LEG_W_RANGE,
+            "interpolate_single": [0.45, 0.475, 0.5, 0.525, 0.55],
+            "interpolate_double": [0.45, 0.5, 0.55],
+            "extrapolate_single": [0.3, 0.35, 0.4, 0.6, 0.65, 0.7, 0.75, 0.8],
+            "extrapolate_double": [0.3, 0.4, 0.6, 0.7, 0.8],
+        },
+    ],
     "box2d_lunar_lander": [
         {
             "context": "GRAVITY_Y",
@@ -215,11 +237,22 @@ _TASK2CONTEXTS = {
     ],
 }
 
+
+class CARLBipedalWalkerNew(CARLBipedalWalker):
+    @classmethod
+    def get_default_context(cls) -> Context:
+        default_context = super().get_default_context()
+        default_context["LEG_H"] = 2.0
+        default_context["LEG_W"] = 0.5
+        return default_context
+
+
 _TASK2ENV = {
     "classic_cartpole": CARLCartPole,
     "dmc_walker": CARLDmcWalkerEnv,
     "classic_pendulum": CARLPendulum,
     "box2d_bipedal_walker": CARLBipedalWalker,
+    "box2d_bipedal_walker_new": CARLBipedalWalkerNew,
     "box2d_lunar_lander": CARLLunarLander,
 }
 
@@ -263,6 +296,10 @@ class NormalizeContextWrapper(Wrapper):
         CARLBipedalWalker: {
             "GRAVITY_Y": BIPEDAL_WALKER_TRAIN_GRAVITY_RANGE,
             "SPEED_KNEE": BIPEDAL_WALKER_TRAIN_SPEED_KNEE_RANGE,
+        },
+        CARLBipedalWalkerNew: {
+            "LEG_H": BIPEDAL_WALKER_TRAIN_LEG_H_RANGE,
+            "LEG_W": BIPEDAL_WALKER_TRAIN_LEG_W_RANGE,
         },
         CARLLunarLander: {
             "GRAVITY_Y": LUNAR_LANDER_TRAIN_GRAVITY_RANGE,
