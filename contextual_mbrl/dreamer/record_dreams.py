@@ -35,19 +35,13 @@ def generate_envs(config, ctx_id):
 
     for v1 in _TASK2CONTEXTS[task][ctx_id]["interpolate_double"]:
         c = env_cls.get_default_context()
-        if (
-            config.env.carl.context == "default"
-            or config.env.carl.context == "single_0"
-        ) and v1 != c["length"]:
-            mode = "extrapolate"
-        else:
-            mode = "interpolate"
-        c["length"] = v1
+        mode = "interpolate"
+        c[context_name] = v1
         contexts.append({"context": c, "mode": mode})
 
     for v1 in _TASK2CONTEXTS[task][1]["extrapolate_double"]:
         c = env_cls.get_default_context()
-        c["length"] = v1
+        c[context_name] = v1
         mode = "extrapolate"
         contexts.append({"context": c, "mode": mode})
 
