@@ -3,8 +3,8 @@
 #SBATCH --array=0-479
 #SBATCH --partition alldlc_gpu-rtx2080
 #SBATCH --job-name CMbRL
-#SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
-#SBATCH --error logs/slurm/%x-%A-%a-HelloCluster.err
+#SBATCH --output logs/slurm/%x-%A-%a.out
+#SBATCH --error logs/slurm/%x-%A-%a.err
 #SBATCH --mem 32GB
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
