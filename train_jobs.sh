@@ -21,7 +21,7 @@ start=`date +%s`
 
 tasks=("carl_classic_cartpole" "carl_dmc_walker")
 seeds=("0" "42" "1337" "13" "71" "1994" "1997" "908" "2102" "3")
-schemes=("enc_obs_dec_obs" "enc_img_dec_img" "enc_obs_ctx_dec_obs_ctx" "enc_img_ctx_dec_img_ctx" "enc_obs_dec_obs_pgm_ctx" "enc_img_dec_img_pgm_ctx")
+schemes=("enc_obs_dec_obs_default" "enc_img_dec_img_default" "enc_obs_dec_obs" "enc_img_dec_img" "enc_obs_ctx_dec_obs_ctx" "enc_img_ctx_dec_img_ctx" "enc_obs_dec_obs_pgm_ctx" "enc_img_dec_img_pgm_ctx" "enc_obs_dec_obs_pgm_ctx_adv" "enc_img_dec_img_pgm_ctx_adv")
 contexts=("single_0" "single_1" "double_box")
 
 n_tasks=${#tasks[@]}
@@ -41,19 +41,31 @@ context=${contexts[$context_index]}
 
 group_name="${task}_${context}_${scheme}_normalized"
 
+if [ "$scheme" == "enc_obs_dec_obs_default" ]; then
+    # exit if context is not single_0 as we only want to run the default scheme once
+    if [ "$context" != "single_0" ]; then
+        exit 0
+    fi
+
+    scheme="enc_obs_dec_obs"
+    context="default"
+elif [ "$scheme" == "enc_img_dec_img_default" ]; then
+    if [ "$context" != "single_0" ]; then
+        exit 0
+    fi
+    scheme="enc_img_dec_img"
+    context="default"
+fi
+
+
 if [ "$task" == "carl_dmc_walker" ]; then
-    steps=100000
+    steps=500000
 else
     steps=50000
 fi
 
 python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps $steps
 python -m contextual_mbrl.dreamer.eval --logdir logs/$group_name/$seed
-python -m contextual_mbrl.dreamer.record_latents --logdir logs/$group_name/$seed
-
-
-
-end=`date +%s`
 
 
 
