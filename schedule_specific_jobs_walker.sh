@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#SBATCH --array=0-19
-#SBATCH --partition alldlc_gpu-rtx2080
+#SBATCH --array=0-20
+#SBATCH --partition insert_your_partition
 #SBATCH --job-name CMbRL_specific_walker
 #SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
 #SBATCH --error logs/slurm/%x-%A-%a-HelloCluster.err
@@ -27,8 +27,7 @@ schemes=("enc_obs_dec_obs")
 # actuator strength [0.1, 0.3, 0.5, 1.0, 1.5, 1.6, 1.8, 2.0]
 # grav, strength (2.45, 0.3), (17.64, 0.3), (17.64, 1.8), (2.45, 1.8)
 
-#contexts=("specific_0-0.98" "specific_0-2.45" "specific_0-3.92" "specific_0-4.9" "specific_0-9.81" "specific_0-14.7" "specific_0-15.68" "specific_0-17.64" "specific_0-19.6" "specific_1-0.1" "specific_1-0.3" "specific_1-0.5" "specific_1-1.0" "specific_1-1.5" "specific_1-1.6" "specific_1-1.8" "specific_1-2.0")
-contexts=("specific_0-2.45_1-0.3" "specific_0-17.64_1-0.3" "specific_0-17.64_1-1.8" "specific_0-2.45_1-1.8")
+contexts=("specific_0-0.98" "specific_0-2.45" "specific_0-3.92" "specific_0-4.9" "specific_0-9.81" "specific_0-14.7" "specific_0-15.68" "specific_0-17.64" "specific_0-19.6" "specific_1-0.1" "specific_1-0.3" "specific_1-0.5" "specific_1-1.0" "specific_1-1.5" "specific_1-1.6" "specific_1-1.8" "specific_1-2.0" "specific_0-2.45_1-0.3" "specific_0-17.64_1-0.3" "specific_0-17.64_1-1.8" "specific_0-2.45_1-1.8")
 
 
 n_tasks=${#tasks[@]}
@@ -48,13 +47,9 @@ context=${contexts[$context_index]}
 
 group_name="${task}_${context}_${scheme}"
 
-# if logdir is not there train
-if [ ! -d logs/specific/$group_name/$seed ]; then
-    echo "Training $group_name $seed"
-    python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/specific/$group_name/$seed --jax.policy_devices 0 --jax.train_devices 1 --run.steps 100000 --wandb.project ''
-fi
-
+python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/specific/$group_name/$seed --jax.policy_devices 0 --jax.train_devices 1 --run.steps 500000 --wandb.project ''
 python -m contextual_mbrl.dreamer.eval --logdir logs/specific/$group_name/$seed
+python -m contextual_mbrl.dreamer.eval --logdir logs/specific/$group_name/$seed --random_policy True
 
 end=`date +%s`
 runtime=$((end-start))

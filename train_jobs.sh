@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH --array=0-359
+#SBATCH --array=0-479
 #SBATCH --partition alldlc_gpu-rtx2080
-#SBATCH --job-name CMbRL_odin
+#SBATCH --job-name CMbRL
 #SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
 #SBATCH --error logs/slurm/%x-%A-%a-HelloCluster.err
 #SBATCH --mem 32GB
@@ -21,7 +21,7 @@ start=`date +%s`
 
 tasks=("carl_classic_cartpole" "carl_dmc_walker")
 seeds=("0" "42" "1337" "13" "71" "1994" "1997" "908" "2102" "3")
-schemes=("enc_obs_dec_obs_default" "enc_img_dec_img_default" "enc_obs_dec_obs" "enc_img_dec_img" "enc_obs_ctx_dec_obs_ctx" "enc_img_ctx_dec_img_ctx" "enc_obs_dec_obs_pgm_ctx" "enc_img_dec_img_pgm_ctx" "enc_obs_dec_obs_pgm_ctx_adv" "enc_img_dec_img_pgm_ctx_adv")
+schemes=("enc_obs_dec_obs_default" "enc_img_dec_img_default" "enc_obs_dec_obs" "enc_img_dec_img" "enc_obs_ctx_dec_obs_ctx" "enc_img_ctx_dec_img_ctx" "enc_obs_dec_obs_pgm_ctx" "enc_img_dec_img_pgm_ctx")
 contexts=("single_0" "single_1" "double_box")
 
 n_tasks=${#tasks[@]}
@@ -46,7 +46,6 @@ if [ "$scheme" == "enc_obs_dec_obs_default" ]; then
     if [ "$context" != "single_0" ]; then
         exit 0
     fi
-
     scheme="enc_obs_dec_obs"
     context="default"
 elif [ "$scheme" == "enc_img_dec_img_default" ]; then

@@ -43,7 +43,9 @@ do
     group_name="${task}_${context}_${scheme}_normalized"
 
     if [ -d "logs/$group_name/$seed" ]; then
-        python -m contextual_mbrl.dreamer.record_cart_length_dreams --logdir logs/$group_name/$seed
+        python -m contextual_mbrl.dreamer.record_dreams --logdir logs/$group_name/$seed --ctx_id 1
+        python -m contextual_mbrl.dreamer.record_dreams --logdir logs/$group_name/$seed --ctx_id 1 --counterfactual_ctx 0.1
+        python -m contextual_mbrl.dreamer.record_dreams --logdir logs/$group_name/$seed --ctx_id 1 --counterfactual_ctx 1.0
     fi
 done
 
