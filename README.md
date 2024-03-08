@@ -1,4 +1,4 @@
-# Dreaming of Many Worlds: Learning Contextual World Models Aids Zero-Shot Generalization in Reinforcement Learning
+# Dreaming of Many Worlds: Learning Contextual World Models Aids Zero-Shot Generalization
 
 
 ## Code
