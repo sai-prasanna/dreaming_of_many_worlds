@@ -1,6 +1,12 @@
 # Dreaming of Many Worlds: Learning Contextual World Models Aids Zero-Shot Generalization in Reinforcement Learning
 
 
+## Code
+
+The training and evaluation code for our experiments is at `contextual_mbrl` directory. The `contextual_mbrl/dreamer/envs.py` defines all our context variations for train and eval and  `contextual_mbrl/dreamer/configs.yaml` defines all the configurations and hyperparameters for our runs. The `contextual_mbrl/dreamer/record_dreams.py` allows us to record the extrapolated/counterfactual dreams.
+
+The code in `dreamerv3_compat` is taken from the [fork](https://github.com/Kinds-of-Intelligence-CFI/dreamerv3-compat) which adds gymnasium support to the [official DreamerV3](https://github.com/danijar/dreamerv3) codebase. We changed it to incorporate our cRSSM method. Our changes are localized mainly to `dreamerv3_compat/dreamerv3/nets.py` and `dreamerv3_compat/dreamerv3/agent.py`.
+
 ## Setup
 
 ### Conda
