@@ -1,16 +1,15 @@
 #!/bin/bash
 
-#SBATCH --array=14-239
+#SBATCH --array=0-479
 #SBATCH --partition alldlc_gpu-rtx2080
-#SBATCH --job-name CMbRL_odin
-#SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
-#SBATCH --error logs/slurm/%x-%A-%a-HelloCluster.err
+#SBATCH --job-name CMbRL
+#SBATCH --output logs/slurm/%x-%A-%a.out
+#SBATCH --error logs/slurm/%x-%A-%a.err
 #SBATCH --mem 32GB
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --ntasks-per-core=1
-#SBATCH --gres=gpu:1
-
+#SBATCH --gres=gpu:2
 
 echo "Workingdir: $PWD";
 echo "Started at $(date)";
@@ -20,7 +19,7 @@ conda activate c_mbrl
 
 start=`date +%s`
 
-tasks=("carl_dmc_walker")
+tasks=("carl_classic_cartpole" "carl_dmc_walker")
 seeds=("0" "42" "1337" "13" "71" "1994" "1997" "908" "2102" "3")
 schemes=("enc_obs_dec_obs_default" "enc_img_dec_img_default" "enc_obs_dec_obs" "enc_img_dec_img" "enc_obs_ctx_dec_obs_ctx" "enc_img_ctx_dec_img_ctx" "enc_obs_dec_obs_pgm_ctx" "enc_img_dec_img_pgm_ctx")
 contexts=("single_0" "single_1" "double_box")
@@ -40,32 +39,33 @@ seed=${seeds[$seed_index]}
 scheme=${schemes[$scheme_index]}
 context=${contexts[$context_index]}
 
-group_name="${task}_${context}_${scheme}_500k"
+group_name="${task}_${context}_${scheme}_normalized"
 
 if [ "$scheme" == "enc_obs_dec_obs_default" ]; then
+    # exit if context is not single_0 as we only want to run the default scheme once
+    if [ "$context" != "single_0" ]; then
+        exit 0
+    fi
     scheme="enc_obs_dec_obs"
     context="default"
 elif [ "$scheme" == "enc_img_dec_img_default" ]; then
+    if [ "$context" != "single_0" ]; then
+        exit 0
+    fi
     scheme="enc_img_dec_img"
     context="default"
 fi
 
-# start training only if logdir does not exist
-# if training dir doesn't exist copy "${task}_${context}_${scheme}_normalized" to the new logdir
 
-if [ ! -d logs/$group_name/ ]; then
-    mkdir -p logs/$group_name
+if [ "$task" == "carl_dmc_walker" ]; then
+    steps=500000
+else
+    steps=50000
 fi
 
-if [ ! -d logs/$group_name/$seed ]; then
-    python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 0 --run.steps 500000 --wandb.project ''
-fi
+python -m contextual_mbrl.dreamer.train --configs carl $scheme --task $task --env.carl.context $context --seed $seed --logdir logs/$group_name/$seed --wandb.group $group_name --jax.policy_devices 0 --jax.train_devices 1 --run.steps $steps
+python -m contextual_mbrl.dreamer.eval --logdir logs/$group_name/$seed
 
-# if eval.jsonl doesn't exist or doesn't have 84 lines
-if [ ! -f logs/$group_name/$seed/eval.jsonl ] || [ $(wc -l < logs/$group_name/$seed/eval.jsonl) -ne 84 ]; then
-    rm logs/$group_name/$seed/eval.jsonl
-    python -m contextual_mbrl.dreamer.eval --logdir logs/$group_name/$seed
-fi
 
 
 end=`date +%s`

@@ -2,8 +2,8 @@
 
 #SBATCH --partition alldlc_gpu-rtx2080
 #SBATCH --job-name CMbRL_array
-#SBATCH --output logs/slurm/%x-%A-%a-HelloCluster.out
-#SBATCH --error logs/slurm/%x-%A-%a-HelloCluster.err
+#SBATCH --output logs/slurm/%x-%A-%a.out
+#SBATCH --error logs/slurm/%x-%A-%a.err
 #SBATCH --mem 32GB
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
@@ -43,7 +43,9 @@ do
     group_name="${task}_${context}_${scheme}_normalized"
 
     if [ -d "logs/$group_name/$seed" ]; then
-        python -m contextual_mbrl.dreamer.record_cart_length_dreams --logdir logs/$group_name/$seed
+        python -m contextual_mbrl.dreamer.record_dreams --logdir logs/$group_name/$seed --ctx_id 1
+        python -m contextual_mbrl.dreamer.record_dreams --logdir logs/$group_name/$seed --ctx_id 1 --counterfactual_ctx 0.1
+        python -m contextual_mbrl.dreamer.record_dreams --logdir logs/$group_name/$seed --ctx_id 1 --counterfactual_ctx 1.0
     fi
 done
 
