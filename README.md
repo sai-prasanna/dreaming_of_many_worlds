@@ -1,5 +1,19 @@
 # Dreaming of Many Worlds: Learning Contextual World Models Aids Zero-Shot Generalization
 
+This repository contains code for the RLC'24 paper "[Dreaming of Many Worlds: Learning Contextual World Models aids Zero-Shot Generalization](https://rlj.cs.umass.edu/2024/papers/RLJ_RLC_2024_167.pdf)".
+
+If you use our work in you research or application, please cite us:
+
+```bibtex
+@article{prasanna-rlc24a,
+  title = {Dreaming of Many Worlds: Learning Contextual World Models Aids Zero-Shot Generalization},
+  author = {Prasanna, Sai and Farid, Karim and Rajan, Raghu and Biedenkapp, André},
+  year = {2024},
+  journal = {Reinforcement Learning Journal},
+  volume = {1},
+  issue = {1},
+}
+```
 
 ## Code
 
